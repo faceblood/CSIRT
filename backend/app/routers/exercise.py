@@ -104,7 +104,7 @@ def delete_exercise(eid: str):
 
 
 @router.post("/{eid}/run")
-def run_exercise(eid: str, body: ExerciseRunBody):
+async def run_exercise(eid: str, body: ExerciseRunBody):
     exercise_store.seed_defaults()
     try:
         exercise_store.load(eid)

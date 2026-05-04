@@ -30,7 +30,7 @@ class SimulateRequest(BaseModel):
 
 
 @router.post("/simulate")
-def start_simulate(body: SimulateRequest):
+async def start_simulate(body: SimulateRequest):
     if jobs_core.job_manager is None:
         raise HTTPException(503)
     if not body.plan:

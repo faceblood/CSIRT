@@ -18,7 +18,7 @@ class PlaybookStart(BaseModel):
 
 
 @router.post("/start")
-def playbook_start(body: PlaybookStart):
+async def playbook_start(body: PlaybookStart):
     if body.campaign_id != "apt_mitre":
         raise HTTPException(404, detail="Unknown campaign")
     if jobs_core.job_manager is None:
@@ -35,9 +35,9 @@ def playbook_start(body: PlaybookStart):
 
 @router.post("/{jid}/stop")
 async def playbook_stop(jid: str):
-    if job_manager is None:
+    if jobs_core.job_manager is None:
         raise HTTPException(503)
-    ok = await job_manager.stop(jid)
+    ok = await jobs_core.job_manager.stop(jid)
     if not ok:
         raise HTTPException(404)
     return {"ok": True}

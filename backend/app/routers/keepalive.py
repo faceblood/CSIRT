@@ -15,7 +15,7 @@ class KeepaliveStart(BaseModel):
 
 
 @router.post("/start")
-def keepalive_start(body: KeepaliveStart):
+async def keepalive_start(body: KeepaliveStart):
     if jobs_core.job_manager is None:
         raise HTTPException(503)
     jid = jobs_core.job_manager.spawn_keepalive(

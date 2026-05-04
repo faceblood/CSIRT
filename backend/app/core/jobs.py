@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 import random
 from typing import Any
@@ -85,6 +86,18 @@ def _clamp_inject_1based(raw: Any, n_injects: int) -> int:
     return max(1, min(v, hi))
 
 
+def _spawn_background(coro: Coroutine[Any, Any, None]) -> asyncio.Task:
+    """Schedule a coroutine; must be called from code running on the ASGI event loop (async def routes)."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError as e:
+        raise RuntimeError(
+            "Internal error: job tasks must be created on the asyncio event loop. "
+            "Job start endpoints must be declared async def."
+        ) from e
+    return loop.create_task(coro)
+
+
 def _take_jump_idx(rec: JobRecord, n_injects: int) -> int | None:
     """Pop jump_to_inject from meta and return 0-based index, or None."""
     if "jump_to_inject" not in rec.meta:
@@ -153,7 +166,7 @@ class JobManager:
                     pass
             rec.status = "completed"
 
-        rec.task = asyncio.create_task(runner())
+        rec.task = _spawn_background(runner())
         self.jobs[jid] = rec
         return jid
 
@@ -218,7 +231,7 @@ class JobManager:
                     break
                 await asyncio.sleep(max(1.0, interval_seconds))
 
-        rec.task = asyncio.create_task(runner())
+        rec.task = _spawn_background(runner())
         self.jobs[jid] = rec
         return jid
 
@@ -348,7 +361,7 @@ class JobManager:
 
             rec.status = "completed"
 
-        rec.task = asyncio.create_task(runner())
+        rec.task = _spawn_background(runner())
         self.jobs[jid] = rec
         return jid
 
@@ -430,7 +443,7 @@ class JobManager:
                 await asyncio.sleep(max(1.0, interval_seconds))
             rec.status = "completed"
 
-        rec.task = asyncio.create_task(runner())
+        rec.task = _spawn_background(runner())
         self.jobs[jid] = rec
         return jid
 

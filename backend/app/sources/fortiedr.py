@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import csv
 import importlib.util
+import os
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -33,8 +36,27 @@ def _load_fedr_module():
     return mod
 
 
-def _write_endpoints_csv(store: InventoryStore, out: Path) -> None:
-    rows = []
+def _write_csv_rows(preferred: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> Path:
+    """Write CSV; on permission errors under data_dir, fall back to the system temp directory."""
+    candidates = [preferred, Path(tempfile.gettempdir()) / f"csirt_{os.getpid()}_{preferred.name}"]
+    err: OSError | None = None
+    for out in candidates:
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with out.open("w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=fieldnames)
+                w.writeheader()
+                for r in rows:
+                    w.writerow(r)
+            return out.resolve()
+        except OSError as e:
+            err = e
+            continue
+    raise PermissionError(f"Cannot write {preferred} (tried temp fallback): {err}") from err
+
+
+def _write_endpoints_csv(store: InventoryStore, preferred: Path) -> Path:
+    rows: list[dict[str, Any]] = []
     for h in store.list_hosts():
         if h.os_family not in ("windows", "linux"):
             continue
@@ -58,14 +80,7 @@ def _write_endpoints_csv(store: InventoryStore, out: Path) -> None:
                 "group": "Lab",
             }
         )
-    import csv
-
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["hostname", "ip", "os", "os_family", "group"])
-        w.writeheader()
-        for r in rows:
-            w.writerow(r)
+    return _write_csv_rows(preferred, ["hostname", "ip", "os", "os_family", "group"], rows)
 
 
 class FortiEdrSource:
@@ -98,13 +113,11 @@ class FortiEdrSource:
         params: dict[str, Any],
     ):
         ddir = store.data_dir
-        endpoints_path = ddir / "_generated_endpoints.csv"
-        _write_endpoints_csv(store, endpoints_path)
+        endpoints_path = _write_endpoints_csv(store, ddir / "_generated_endpoints.csv")
         inst = settings.repo_root / "escenarios" / "instrumentacion"
         proc = inst / "processes.csv"
         proc_path = str(proc) if proc.exists() else "/nonexistent/processes.csv"
-        rep_pool = ddir / "_generated_reporting.csv"
-        self._ensure_reporting_csv(store, rep_pool)
+        rep_pool = self._ensure_reporting_csv(store, ddir / "_generated_reporting.csv")
         return SimpleNamespace(
             fortisiem_ip=fortisiem_ip or settings.fortisiem_ip,
             port=fortisiem_port or settings.fortisiem_port,
@@ -138,22 +151,15 @@ class FortiEdrSource:
             dry_run=True,
         )
 
-    def _ensure_reporting_csv(self, store: InventoryStore, path: Path) -> None:
+    def _ensure_reporting_csv(self, store: InventoryStore, preferred: Path) -> Path:
         # Use FortiEDR-like collector hosts if present, else first non-appliance IP
         collectors = [h for h in store.list_hosts() if "fortiedr" in (h.group or "").lower() or "edr" in (h.role or "").lower()]
-        rows = []
+        rows: list[dict[str, Any]] = []
         for h in collectors or store.list_hosts()[:3]:
             rows.append({"ip": h.resolved_reporting_ip(), "name": h.hostname})
         if not rows:
             rows.append({"ip": "172.16.20.110", "name": "FORTIEDR-CM-01"})
-        import csv
-
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=["ip", "name"])
-            w.writeheader()
-            for r in rows:
-                w.writerow(r)
+        return _write_csv_rows(preferred, ["ip", "name"], rows)
 
     def build_event(self, *, event_type: str, params: dict[str, Any], inventory: InventoryStore | None = None) -> BuiltEvent:
         store = inventory or inventory_store
