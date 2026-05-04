@@ -217,6 +217,10 @@ class FortiEdrSource:
     def build_event(self, *, event_type: str, params: dict[str, Any], inventory: InventoryStore | None = None) -> BuiltEvent:
         store = inventory or inventory_store
         m = self.mod
+        if not hasattr(m, "load_data"):
+            # Old cached stub or incomplete external module — replace with full stub API.
+            m = _fedr_stub()
+            self._mod = m
         args = self._build_args(store, fortisiem_ip=params.get("fortisiem_ip"), fortisiem_port=params.get("fortisiem_port"), params={**params, "ttp": event_type})
         data = m.load_data(args)
         hid = params.get("host_id")
