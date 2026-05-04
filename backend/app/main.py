@@ -70,3 +70,15 @@ app.include_router(exercise.router)
 static_dir = settings.repo_root / "frontend" / "dist"
 if static_dir.exists():
     app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+else:
+
+    @app.get("/")
+    def root_api_only():
+        """Avoid bare `/` returning opaque 404 when the SPA has not been built."""
+        return {
+            "service": app.title,
+            "openapi": "/openapi.json",
+            "docs": "/docs",
+            "health": "/api/health",
+            "hint": "Run `npm run build` in frontend/ and restart so `/` serves the UI.",
+        }
