@@ -167,7 +167,14 @@ class FortiEdrSource:
     def mod(self):
         if self._mod is None:
             self._mod = _load_fedr_module()
-        return self._mod
+        fixed, replaced = _coerce_fedr_to_api(self._mod)
+        if replaced:
+            _log.warning(
+                "fortiedr: incomplete loader %s (need load_data/pick_ep/pick_reporting/syslog_msg/GEN); using built-in stub",
+                type(self._mod).__name__,
+            )
+            self._mod = fixed
+        return fixed
 
     def list_event_types(self) -> list[EventTypeSpec]:
         m = self.mod
@@ -233,14 +240,7 @@ class FortiEdrSource:
 
     def build_event(self, *, event_type: str, params: dict[str, Any], inventory: InventoryStore | None = None) -> BuiltEvent:
         store = inventory or inventory_store
-        raw_mod = self.mod
-        m, replaced = _coerce_fedr_to_api(raw_mod)
-        if replaced:
-            _log.warning(
-                "fortiedr: incomplete loader %s (need load_data/pick_ep/pick_reporting/syslog_msg/GEN); using built-in stub",
-                type(raw_mod).__name__,
-            )
-            self._mod = m
+        m = self.mod
         args = self._build_args(store, fortisiem_ip=params.get("fortisiem_ip"), fortisiem_port=params.get("fortisiem_port"), params={**params, "ttp": event_type})
         data = m.load_data(args)
         hid = params.get("host_id")
