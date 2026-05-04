@@ -63,7 +63,7 @@ npm install
 npm run dev
 ```
 
-Vite proxies `/api` to `http://127.0.0.1:8000`. Production build:
+Dev server port defaults to **5173**. Override with **`VITE_DEV_PORT`** / **`PORT`**, or **`npm run dev -- --port 3389`** (CLI wins over env). Vite proxies `/api` to `http://127.0.0.1:8000`. Production build:
 
 ```bash
 npm run build
