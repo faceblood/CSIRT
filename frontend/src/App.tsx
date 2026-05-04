@@ -55,6 +55,41 @@ function fortisiemExtras(fsIp: string, fsPort: string): Record<string, unknown> 
   return out;
 }
 
+function newSimulateStageKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `sim-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+type SimulateStageRow = {
+  key: string;
+  sourceId: string;
+  poolMode: "all" | "subset";
+  eventTypeIds: string[];
+  count: number;
+  hostId: string;
+  userId: string;
+  srcIp: string;
+  dstIp: string;
+  dstPort: string;
+  extraParamsJson: string;
+};
+
+function emptySimulateStage(sourceId: string): SimulateStageRow {
+  return {
+    key: newSimulateStageKey(),
+    sourceId,
+    poolMode: "all",
+    eventTypeIds: [],
+    count: 1,
+    hostId: "",
+    userId: "",
+    srcIp: "",
+    dstIp: "",
+    dstPort: "",
+    extraParamsJson: "{}",
+  };
+}
+
 function TabBtn({
   id,
   active,
@@ -1049,6 +1084,10 @@ function GeneratePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T |
   const [sources, setSources] = useState<{ id: string; event_types: { id: string }[] }[]>([]);
   const [sourceId, setSourceId] = useState("");
   const [eventType, setEventType] = useState("");
+  const [inventoryHosts, setInventoryHosts] = useState<{ id: string; hostname: string; ip: string }[]>([]);
+  const [inventoryUsers, setInventoryUsers] = useState<{ id: string; sam: string; domain: string }[]>([]);
+  const [hostId, setHostId] = useState("");
+  const [userId, setUserId] = useState("");
   const [paramsJson, setParamsJson] = useState("{}");
   const [count, setCount] = useState(1);
   const [dryRun, setDryRun] = useState(true);
@@ -1059,12 +1098,34 @@ function GeneratePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T |
 
   useEffect(() => {
     void run(async () => {
-      const s = await apiJson<{ id: string; event_types: { id: string }[] }[]>("/api/sources");
+      const [s, rawHosts, rawUsers] = await Promise.all([
+        apiJson<{ id: string; event_types: { id: string }[] }[]>("/api/sources"),
+        apiJson<Record<string, unknown>[]>("/api/inventory/hosts"),
+        apiJson<Record<string, unknown>[]>("/api/inventory/users"),
+      ]);
       setSources(s);
       if (s[0]) {
         setSourceId(s[0].id);
         setEventType(s[0].event_types[0]?.id ?? "");
       }
+      setInventoryHosts(
+        rawHosts
+          .map((h) => ({
+            id: String(h.id ?? ""),
+            hostname: String(h.hostname ?? ""),
+            ip: String(h.ip ?? ""),
+          }))
+          .filter((h) => h.id),
+      );
+      setInventoryUsers(
+        rawUsers
+          .map((u) => ({
+            id: String(u.id ?? ""),
+            sam: String(u.sam ?? ""),
+            domain: String(u.domain ?? "corp"),
+          }))
+          .filter((u) => u.id),
+      );
     });
   }, [run]);
 
@@ -1081,13 +1142,18 @@ function GeneratePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T |
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    let params: Record<string, unknown> = {};
+    let extras: Record<string, unknown> = {};
     try {
-      params = JSON.parse(paramsJson) as Record<string, unknown>;
+      extras = JSON.parse(paramsJson) as Record<string, unknown>;
     } catch {
-      setLast("Invalid JSON in params");
+      setLast("Invalid JSON in extra params");
       return;
     }
+    const params: Record<string, unknown> = { ...extras };
+    const hid = hostId.trim();
+    const uid = userId.trim();
+    if (hid) params.host_id = hid;
+    if (uid) params.user_id = uid;
     void run(async () => {
       const body: Record<string, unknown> = {
         source_id: sourceId,
@@ -1152,11 +1218,42 @@ function GeneratePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T |
           </select>
         </label>
         <label className="block">
-          <span className="text-zinc-400">Params (JSON)</span>
+          <span className="text-zinc-400">Inventory host</span>
+          <select
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
+            value={hostId}
+            onChange={(ev) => setHostId(ev.target.value)}
+          >
+            <option value="">(none — defaults / random)</option>
+            {inventoryHosts.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.hostname} — {h.ip}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-zinc-400">Inventory user</span>
+          <select
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
+            value={userId}
+            onChange={(ev) => setUserId(ev.target.value)}
+          >
+            <option value="">(none — defaults / random)</option>
+            {inventoryUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.domain}\{u.sam}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-zinc-400">Extra params (JSON, optional)</span>
           <textarea
-            className="mt-1 h-28 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-xs"
+            className="mt-1 h-24 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-xs"
             value={paramsJson}
             onChange={(ev) => setParamsJson(ev.target.value)}
+            placeholder='e.g. { "cmdline": "powershell -enc ..." } — host/user above override host_id / user_id when set'
           />
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1718,49 +1815,214 @@ function ExercisePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T |
 }
 
 function SimulatePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T | undefined> }) {
-  const [body, setBody] = useState(`{
-  "plan": [
-    {
-      "source_id": "linux",
-      "event_types": ["baseline_cron"],
-      "count": 3,
-      "params": {}
-    }
-  ],
-  "min_delay": 0.2,
-  "max_delay": 0.6,
-  "loop": false,
-  "interval_seconds": 30,
-  "max_rounds": 0
-}`);
+  const [sources, setSources] = useState<{ id: string; event_types: { id: string }[] }[]>([]);
+  const [inventoryHosts, setInventoryHosts] = useState<{ id: string; hostname: string; ip: string }[]>([]);
+  const [inventoryUsers, setInventoryUsers] = useState<{ id: string; sam: string; domain: string }[]>([]);
+  const [stages, setStages] = useState<SimulateStageRow[]>([]);
+  const [minDelay, setMinDelay] = useState(0.2);
+  const [maxDelay, setMaxDelay] = useState(0.6);
+  const [loop, setLoop] = useState(false);
+  const [intervalSeconds, setIntervalSeconds] = useState(30);
+  const [maxRounds, setMaxRounds] = useState(0);
   const [simFsIp, setSimFsIp] = useState("");
   const [simFsPort, setSimFsPort] = useState("");
   const [msg, setMsg] = useState("");
+  const [showRawJson, setShowRawJson] = useState(false);
+  const [rawBody, setRawBody] = useState("");
+
+  useEffect(() => {
+    void run(async () => {
+      const [s, rawHosts, rawUsers] = await Promise.all([
+        apiJson<{ id: string; event_types: { id: string }[] }[]>("/api/sources"),
+        apiJson<Record<string, unknown>[]>("/api/inventory/hosts"),
+        apiJson<Record<string, unknown>[]>("/api/inventory/users"),
+      ]);
+      setSources(s);
+      setInventoryHosts(
+        rawHosts
+          .map((h) => ({ id: String(h.id ?? ""), hostname: String(h.hostname ?? ""), ip: String(h.ip ?? "") }))
+          .filter((h) => h.id),
+      );
+      setInventoryUsers(
+        rawUsers
+          .map((u) => ({ id: String(u.id ?? ""), sam: String(u.sam ?? ""), domain: String(u.domain ?? "corp") }))
+          .filter((u) => u.id),
+      );
+      setStages((prev) => {
+        if (prev.length > 0) return prev;
+        const sid = s[0]?.id ?? "";
+        return sid ? [emptySimulateStage(sid)] : [];
+      });
+    });
+  }, [run]);
+
+  const updateStage = (key: string, patch: Partial<SimulateStageRow>) => {
+    setStages((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  };
+
+  const addStage = () => {
+    const sid = stages[stages.length - 1]?.sourceId || sources[0]?.id || "";
+    setStages((rows) => [...rows, emptySimulateStage(sid)]);
+  };
+
+  const removeStage = (key: string) => {
+    setStages((rows) => (rows.length <= 1 ? rows : rows.filter((r) => r.key !== key)));
+  };
+
+  const toggleEventType = (key: string, etId: string, checked: boolean) => {
+    setStages((rows) =>
+      rows.map((r) => {
+        if (r.key !== key) return r;
+        const set = new Set(r.eventTypeIds);
+        if (checked) set.add(etId);
+        else set.delete(etId);
+        return { ...r, eventTypeIds: [...set] };
+      }),
+    );
+  };
 
   const start = () =>
     run(async () => {
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(body) as Record<string, unknown>;
-      } catch {
-        setMsg("Invalid JSON");
+      if (showRawJson) {
+        if (!rawBody.trim()) {
+          setMsg("Paste a full JSON body or disable “Use raw JSON”.");
+          return;
+        }
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(rawBody) as Record<string, unknown>;
+        } catch {
+          setMsg("Invalid JSON in raw body");
+          return;
+        }
+        try {
+          Object.assign(parsed, fortisiemExtras(simFsIp, simFsPort));
+        } catch (e) {
+          setMsg(e instanceof Error ? e.message : String(e));
+          return;
+        }
+        const out = await apiJson<{ job_id: string }>("/api/simulate", { method: "POST", body: JSON.stringify(parsed) });
+        setMsg(`Job ${out.job_id} — control under Jobs tab`);
         return;
       }
+
+      if (!stages.length) {
+        setMsg("Add at least one stage after sources load.");
+        return;
+      }
+
+      const plan: Record<string, unknown>[] = [];
+      for (const st of stages) {
+        let extras: Record<string, unknown> = {};
+        try {
+          extras = JSON.parse(st.extraParamsJson) as Record<string, unknown>;
+        } catch {
+          setMsg(`Invalid JSON in extra params (stage ${st.sourceId || "?"})`);
+          return;
+        }
+        const params: Record<string, unknown> = { ...extras };
+        const uid = st.userId.trim();
+        if (uid) params.user_id = uid;
+        const sip = st.srcIp.trim();
+        const dip = st.dstIp.trim();
+        const dps = st.dstPort.trim();
+        if (sip) params.src_ip = sip;
+        if (dip) params.dst_ip = dip;
+        if (dps) {
+          const p = Number(dps);
+          if (Number.isFinite(p)) params.dst_port = p;
+        }
+
+        const event_types = st.poolMode === "subset" ? st.eventTypeIds : [];
+        if (st.poolMode === "subset" && event_types.length === 0) {
+          setMsg(`Choose at least one event type for stage “${st.sourceId}”, or switch to “All types”.`);
+          return;
+        }
+
+        plan.push({
+          source_id: st.sourceId,
+          event_types,
+          count: Math.max(1, st.count),
+          params,
+          host_id: st.hostId.trim() || null,
+        });
+      }
+
+      const body: Record<string, unknown> = {
+        plan,
+        min_delay: minDelay,
+        max_delay: Math.max(minDelay, maxDelay),
+        loop,
+        interval_seconds: intervalSeconds,
+        max_rounds: maxRounds,
+      };
       try {
-        Object.assign(parsed, fortisiemExtras(simFsIp, simFsPort));
+        Object.assign(body, fortisiemExtras(simFsIp, simFsPort));
       } catch (e) {
         setMsg(e instanceof Error ? e.message : String(e));
         return;
       }
-      const out = await apiJson<{ job_id: string }>("/api/simulate", {
-        method: "POST",
-        body: JSON.stringify(parsed),
-      });
+      const out = await apiJson<{ job_id: string }>("/api/simulate", { method: "POST", body: JSON.stringify(body) });
       setMsg(`Job ${out.job_id} — control under Jobs tab`);
     });
 
   return (
     <PanelCard title="Multi-source simulate job">
+      <p className="mb-3 text-sm text-zinc-400">
+        Build a sequence of stages (each row: log source, event pool, inventory, optional traffic fields). Empty event pool means <span className="text-zinc-300">all types</span> for that
+        source.
+      </p>
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="block text-xs text-zinc-400">
+          Min delay (s)
+          <input
+            type="number"
+            step={0.05}
+            min={0}
+            className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+            value={minDelay}
+            onChange={(ev) => setMinDelay(Number(ev.target.value))}
+          />
+        </label>
+        <label className="block text-xs text-zinc-400">
+          Max delay (s)
+          <input
+            type="number"
+            step={0.05}
+            min={0}
+            className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+            value={maxDelay}
+            onChange={(ev) => setMaxDelay(Number(ev.target.value))}
+          />
+        </label>
+        <label className="block text-xs text-zinc-400">
+          Interval between rounds (s)
+          <input
+            type="number"
+            step={1}
+            min={0}
+            className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+            value={intervalSeconds}
+            onChange={(ev) => setIntervalSeconds(Number(ev.target.value))}
+          />
+        </label>
+        <label className="block text-xs text-zinc-400">
+          Max rounds (0 = unlimited if loop)
+          <input
+            type="number"
+            min={0}
+            className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+            value={maxRounds}
+            onChange={(ev) => setMaxRounds(Number(ev.target.value))}
+          />
+        </label>
+      </div>
+      <label className="mb-4 flex items-center gap-2 text-sm text-zinc-300">
+        <input type="checkbox" checked={loop} onChange={(ev) => setLoop(ev.target.checked)} />
+        Loop plan (repeat after each full pass)
+      </label>
+
       <div className="mb-3 grid gap-3 sm:grid-cols-2">
         <label className="block text-xs text-zinc-400">
           FortiSIEM IP (optional)
@@ -1771,10 +2033,193 @@ function SimulatePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T |
           <input className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs" placeholder="514" value={simFsPort} onChange={(ev) => setSimFsPort(ev.target.value)} />
         </label>
       </div>
-      <textarea className="h-64 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-xs" value={body} onChange={(ev) => setBody(ev.target.value)} />
-      <button type="button" className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-500" onClick={() => void start()}>
-        Start simulate
-      </button>
+
+      {stages.length === 0 ? (
+        <p className="text-sm text-zinc-500">Loading sources…</p>
+      ) : (
+        <div className="space-y-4">
+          {stages.map((st, idx) => {
+            const etOptions = sources.find((x) => x.id === st.sourceId)?.event_types ?? [];
+            return (
+              <div key={st.key} className="rounded-lg border border-zinc-800 bg-black/20 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-zinc-200">Stage {idx + 1}</span>
+                  <button
+                    type="button"
+                    className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
+                    onClick={() => removeStage(st.key)}
+                    disabled={stages.length <= 1}
+                  >
+                    Remove stage
+                  </button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-xs text-zinc-400">
+                    Source
+                    <select
+                      className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm"
+                      value={st.sourceId}
+                      onChange={(ev) => {
+                        const next = ev.target.value;
+                        updateStage(st.key, {
+                          sourceId: next,
+                          poolMode: "all",
+                          eventTypeIds: [],
+                        });
+                      }}
+                    >
+                      {sources.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-xs text-zinc-400">
+                    Events per tick (count)
+                    <input
+                      type="number"
+                      min={1}
+                      className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+                      value={st.count}
+                      onChange={(ev) => updateStage(st.key, { count: Math.max(1, Number(ev.target.value) || 1) })}
+                    />
+                  </label>
+                  <label className="block text-xs text-zinc-400 sm:col-span-2">
+                    Event type pool
+                    <div className="mt-2 flex flex-wrap gap-4 text-sm text-zinc-300">
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`pool-${st.key}`}
+                          checked={st.poolMode === "all"}
+                          onChange={() => updateStage(st.key, { poolMode: "all", eventTypeIds: [] })}
+                        />
+                        All types for this source
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`pool-${st.key}`}
+                          checked={st.poolMode === "subset"}
+                          onChange={() => updateStage(st.key, { poolMode: "subset", eventTypeIds: etOptions.length ? [etOptions[0].id] : [] })}
+                        />
+                        Choose types…
+                      </label>
+                    </div>
+                    {st.poolMode === "subset" ? (
+                      <div className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded border border-zinc-800 p-2">
+                        {etOptions.map((et) => (
+                          <label key={et.id} className="flex cursor-pointer items-center gap-1.5 text-xs text-zinc-400">
+                            <input
+                              type="checkbox"
+                              checked={st.eventTypeIds.includes(et.id)}
+                              onChange={(ev) => toggleEventType(st.key, et.id, ev.target.checked)}
+                            />
+                            <span className="font-mono text-zinc-300">{et.id}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+                  </label>
+                  <label className="block text-xs text-zinc-400">
+                    Inventory host
+                    <select
+                      className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm"
+                      value={st.hostId}
+                      onChange={(ev) => updateStage(st.key, { hostId: ev.target.value })}
+                    >
+                      <option value="">(none)</option>
+                      {inventoryHosts.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.hostname} — {h.ip}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-xs text-zinc-400">
+                    Inventory user
+                    <select
+                      className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm"
+                      value={st.userId}
+                      onChange={(ev) => updateStage(st.key, { userId: ev.target.value })}
+                    >
+                      <option value="">(none)</option>
+                      {inventoryUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.domain}\{u.sam}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-xs text-zinc-400">
+                    Src IP (optional, e.g. FortiGate)
+                    <input
+                      className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+                      placeholder="10.0.10.30"
+                      value={st.srcIp}
+                      onChange={(ev) => updateStage(st.key, { srcIp: ev.target.value })}
+                    />
+                  </label>
+                  <label className="block text-xs text-zinc-400">
+                    Dst IP (optional)
+                    <input
+                      className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+                      placeholder="10.255.50.10"
+                      value={st.dstIp}
+                      onChange={(ev) => updateStage(st.key, { dstIp: ev.target.value })}
+                    />
+                  </label>
+                  <label className="block text-xs text-zinc-400 sm:col-span-2">
+                    Dst port (optional)
+                    <input
+                      className="mt-1 max-w-xs rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+                      placeholder="502"
+                      value={st.dstPort}
+                      onChange={(ev) => updateStage(st.key, { dstPort: ev.target.value })}
+                    />
+                  </label>
+                  <label className="block text-xs text-zinc-400 sm:col-span-2">
+                    Extra params (JSON, optional)
+                    <textarea
+                      className="mt-1 h-16 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+                      value={st.extraParamsJson}
+                      onChange={(ev) => updateStage(st.key, { extraParamsJson: ev.target.value })}
+                      placeholder="{}"
+                    />
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" className="rounded-lg bg-zinc-700 px-3 py-2 text-sm text-white hover:bg-zinc-600" onClick={addStage}>
+          Add stage
+        </button>
+        <button type="button" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-500" onClick={() => void start()}>
+          Start simulate
+        </button>
+      </div>
+
+      <details className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
+        <summary className="cursor-pointer text-sm text-zinc-400">Advanced: paste full JSON body instead</summary>
+        <label className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
+          <input type="checkbox" checked={showRawJson} onChange={(ev) => setShowRawJson(ev.target.checked)} />
+          Use raw JSON (ignores form above)
+        </label>
+        {showRawJson ? (
+          <textarea
+            className="mt-2 h-48 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-2 font-mono text-xs"
+            value={rawBody}
+            onChange={(ev) => setRawBody(ev.target.value)}
+            placeholder='{"plan":[...],"min_delay":0.2,...}'
+          />
+        ) : null}
+      </details>
+
       {msg ? <p className="mt-3 text-sm text-emerald-400">{msg}</p> : null}
     </PanelCard>
   );
