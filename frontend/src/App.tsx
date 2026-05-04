@@ -71,6 +71,8 @@ type SimulateStageRow = {
   srcIp: string;
   dstIp: string;
   dstPort: string;
+  cmdline: string;
+  qname: string;
   extraParamsJson: string;
 };
 
@@ -86,6 +88,8 @@ function emptySimulateStage(sourceId: string): SimulateStageRow {
     srcIp: "",
     dstIp: "",
     dstPort: "",
+    cmdline: "",
+    qname: "",
     extraParamsJson: "{}",
   };
 }
@@ -1932,6 +1936,10 @@ function SimulatePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T |
           const p = Number(dps);
           if (Number.isFinite(p)) params.dst_port = p;
         }
+        const cl = st.cmdline.trim();
+        const qn = st.qname.trim();
+        if (cl) params.cmdline = cl;
+        if (qn) params.qname = qn;
 
         const event_types = st.poolMode === "subset" ? st.eventTypeIds : [];
         if (st.poolMode === "subset" && event_types.length === 0) {
@@ -2177,6 +2185,24 @@ function SimulatePanel({ run }: { run: <T,>(fn: () => Promise<T>) => Promise<T |
                       placeholder="502"
                       value={st.dstPort}
                       onChange={(ev) => updateStage(st.key, { dstPort: ev.target.value })}
+                    />
+                  </label>
+                  <label className="block text-xs text-zinc-400 sm:col-span-2">
+                    Process cmdline (optional, e.g. Windows 4688)
+                    <input
+                      className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+                      placeholder="powershell.exe -nop -w hidden ..."
+                      value={st.cmdline}
+                      onChange={(ev) => updateStage(st.key, { cmdline: ev.target.value })}
+                    />
+                  </label>
+                  <label className="block text-xs text-zinc-400 sm:col-span-2">
+                    DNS query name (optional, some FortiGate types)
+                    <input
+                      className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs"
+                      placeholder="evil-example.com"
+                      value={st.qname}
+                      onChange={(ev) => updateStage(st.key, { qname: ev.target.value })}
                     />
                   </label>
                   <label className="block text-xs text-zinc-400 sm:col-span-2">
