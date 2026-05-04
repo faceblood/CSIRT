@@ -42,6 +42,10 @@ Data paths:
 
 With a built frontend, static files from `frontend/dist` are served from `/` when that directory exists.
 
+## CI (GitHub Actions)
+
+On pushes and pull requests to **`main`**, workflows run **backend** [`pytest`](backend/tests/test_smoke.py) and **frontend** **`npm run build`** (TypeScript + Vite). [Dependabot](.github/dependabot.yml) opens weekly grouped updates for **`backend/`** (pip) and **`frontend/`** (npm).
+
 ## Testing (backend smoke)
 
 ```bash
