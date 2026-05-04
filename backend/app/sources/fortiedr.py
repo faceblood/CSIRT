@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import importlib.util
 import os
 import tempfile
@@ -14,8 +15,60 @@ from app.sources.base import BuiltEvent, EventTypeSpec, Framing
 
 
 def _fedr_stub():
-    """Minimal stand-in when the external script is missing or cannot register signals (non-main thread)."""
-    return SimpleNamespace(GEN={"ransomware": {}, "stub_edr": {}})
+    """Minimal stand-in when the external script is missing or cannot register signals (non-main thread).
+
+    Implements the same surface as ``fortiedr_extended_ttp_scapy_v3.py`` so ``build_event`` works and
+    emits a short RFC5424-style stub line (replace the script in repo root for full TTP bodies).
+    """
+
+    def load_data(args: Any) -> dict[str, Any]:
+        return {
+            "endpoints": [
+                {
+                    "hostname": "WIN-LAB-01",
+                    "ip": "10.0.10.30",
+                    "os": "Windows 11 Pro",
+                    "os_family": "windows",
+                    "group": "Endpoints",
+                }
+            ]
+        }
+
+    def pick_ep(data: dict[str, Any], os_filter: str) -> dict[str, Any]:
+        eps = data.get("endpoints") or []
+        if not eps:
+            return {"hostname": "UNKNOWN", "ip": "127.0.0.1"}
+        return eps[0]
+
+    def pick_reporting(args: Any, data: dict[str, Any]) -> dict[str, str]:
+        rip = getattr(args, "reporting_ip", None) or "172.16.20.110"
+        return {"ip": str(rip), "name": getattr(args, "reporting_name", None) or "FORTIEDR-CM-01"}
+
+    def syslog_msg(args: Any, reporting: dict[str, str], body: Any) -> str:
+        line = json.dumps(
+            {
+                "stub": True,
+                "body": body,
+                "collector": reporting.get("ip"),
+            },
+            ensure_ascii=False,
+        )
+        pri = getattr(args, "pri", "<134>") or "<134>"
+        return f"{pri}1 {line}\n"
+
+    def _gen_stub(_args: Any, _data: dict[str, Any], ep: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "message": "FortiEDR stub event (install fortiedr_extended_ttp_scapy_v3.py in repo root for full TTPs)",
+            "endpoint": ep.get("hostname", "?"),
+        }
+
+    return SimpleNamespace(
+        load_data=load_data,
+        pick_ep=pick_ep,
+        pick_reporting=pick_reporting,
+        syslog_msg=syslog_msg,
+        GEN={"ransomware": _gen_stub, "stub_edr": _gen_stub},
+    )
 
 
 def _load_fedr_module():
