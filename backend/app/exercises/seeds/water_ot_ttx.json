@@ -1,0 +1,53 @@
+{
+  "id": "water_ot_ttx",
+  "label": "Water Utility OT/IT — Day-of-incident TTX",
+  "description": "Condensed tabletop template with representative FortiSIEM injects.",
+  "required_actors": ["victim_windows", "victim_linux", "fortigate", "fortiproxy", "user"],
+  "injects": [
+    {
+      "idx": 1,
+      "offset": "-2h",
+      "name": "Actividad VPN anómala",
+      "role": "SOC / Gestión",
+      "narrative": "Acceso VPN del ingeniero OT desde origen no habitual.",
+      "expected_decision": "Elevar vigilancia, validar usuario.",
+      "log_actions": [
+        { "source_id": "fortigate", "event_type": "event_admin_login", "params": { "host_id_ref": "fortigate", "user_id_ref": "user" }, "count": 1 },
+        { "source_id": "linux", "event_type": "sshd_accepted", "params": { "host_id_ref": "victim_linux", "user_id_ref": "user" }, "count": 1 }
+      ]
+    },
+    {
+      "idx": 2,
+      "offset": "+0",
+      "name": "PowerShell + 7z",
+      "role": "SOC / IT",
+      "narrative": "Ejecución sospechosa y archivo comprimido relevante.",
+      "expected_decision": "Incidente alto; preservar evidencias.",
+      "log_actions": [
+        { "source_id": "windows", "event_type": "4688", "params": { "host_id_ref": "victim_windows", "user_id_ref": "user" }, "count": 1 },
+        { "source_id": "fortiedr", "event_type": "suspicious_process", "params": { "host_id_ref": "victim_windows" }, "count": 1 }
+      ]
+    },
+    {
+      "idx": 3,
+      "offset": "+30m",
+      "name": "Telemetría incoherente",
+      "role": "OT / Gestión",
+      "narrative": "Retraso sensor vs HMI.",
+      "expected_decision": "Validación manual reforzada.",
+      "log_actions": [
+        { "source_id": "linux", "event_type": "kernel_ransom_like", "params": { "host_id_ref": "victim_linux", "user_id_ref": "user" }, "count": 1 },
+        { "source_id": "fortigate", "event_type": "traffic_deny", "params": { "host_id_ref": "fortigate", "dst_ip": "10.255.50.10", "dst_port": 502 }, "count": 1 }
+      ]
+    },
+    {
+      "idx": 4,
+      "offset": "+1h",
+      "name": "Inteligencia gubernamental",
+      "role": "Legal / Dirección",
+      "narrative": "Información sobre campaña regional.",
+      "expected_decision": "Escalar internamente.",
+      "log_actions": []
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+id,hostname,ip,os,os_family,role,reporting_ip,group
+67bfa929-0d5c-408f-8d35-df618e66a958,MAD-W11-FIN-014,10.0.10.30,Windows 11 Pro 23H2,windows,client,10.0.10.30,Finance Workstations
+33527763-4732-4b5d-a36a-3931b9999bbd,MAD-LNX-WEB-001,10.0.30.21,Ubuntu Server 22.04 LTS,linux,server,10.0.30.21,Linux Web Servers
+9dd3618f-230c-4c30-86c0-ed0613dacc0d,FGT-EDGE,172.16.20.101,FortiGate 7.4,fortigate,firewall,172.16.20.101,Perimeter
+7bc456d6-e10f-430c-bcb6-ae165a8b36b2,FPX-PROXY,172.16.20.102,FortiProxy,fortiproxy,firewall,172.16.20.102,Proxy
+bb975847-b248-4801-8429-f64d665dde4f,FV-WAF-01,172.16.20.105,FortiWeb,fortiweb,waf,172.16.20.105,DMZ
+d5368b53-736d-42b5-9f4c-b9a11f9286d6,FM-MAIL-01,172.16.20.106,FortiMail,fortimail,mail_gateway,172.16.20.106,Mail
+5e71464e-1920-4662-bd69-41823523ce2b,DC-MAD-01,10.0.20.10,Windows Server 2022 DC,windows,domain_controller,10.0.20.10,Domain Controllers
