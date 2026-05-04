@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Coroutine
 from dataclasses import dataclass, field
 import random
+import threading
 from typing import Any
 from uuid import uuid4
 
@@ -86,16 +87,39 @@ def _clamp_inject_1based(raw: Any, n_injects: int) -> int:
     return max(1, min(v, hi))
 
 
+_app_loop: asyncio.AbstractEventLoop | None = None
+
+
 def _spawn_background(coro: Coroutine[Any, Any, None]) -> asyncio.Task:
-    """Schedule a coroutine; must be called from code running on the ASGI event loop (async def routes)."""
+    """Schedule a background job coroutine on the ASGI event loop.
+
+    Works when the HTTP handler runs on the loop (``async def``) or in Starlette's
+    thread pool (sync ``def``): the latter has no running loop in that thread.
+    """
     try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError as e:
+        return asyncio.get_running_loop().create_task(coro)
+    except RuntimeError:
+        pass
+    loop = _app_loop
+    if loop is None:
         raise RuntimeError(
-            "Internal error: job tasks must be created on the asyncio event loop. "
-            "Job start endpoints must be declared async def."
-        ) from e
-    return loop.create_task(coro)
+            "Job manager is not bound to the asyncio loop (app lifespan did not run init_job_manager(loop))."
+        )
+
+    box: dict[str, asyncio.Task | None] = {}
+    done = threading.Event()
+
+    def _post() -> None:
+        box["task"] = loop.create_task(coro)
+        done.set()
+
+    loop.call_soon_threadsafe(_post)
+    if not done.wait(timeout=15.0):
+        raise RuntimeError("Timeout scheduling background job on the event loop")
+    t = box.get("task")
+    if t is None:
+        raise RuntimeError("Background task was not created")
+    return t
 
 
 def _take_jump_idx(rec: JobRecord, n_injects: int) -> int | None:
@@ -495,7 +519,8 @@ class JobManager:
 job_manager: JobManager | None = None
 
 
-def init_job_manager(history: HistoryBuffer) -> JobManager:
-    global job_manager
+def init_job_manager(history: HistoryBuffer, app_loop: asyncio.AbstractEventLoop | None = None) -> JobManager:
+    global job_manager, _app_loop
+    _app_loop = app_loop
     job_manager = JobManager(history)
     return job_manager

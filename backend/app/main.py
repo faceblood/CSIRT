@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -18,7 +19,7 @@ async def lifespan(app: FastAPI):
     exercise_store.seed_defaults()
     hist = HistoryBuffer(maxlen=settings.history_limit)
     app.state.history = hist
-    init_job_manager(hist)
+    init_job_manager(hist, asyncio.get_running_loop())
     yield
 
 
