@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import csv
-import json
 import importlib.util
+import json
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -12,6 +13,8 @@ from typing import Any
 from app.config import settings
 from app.core.inventory_store import InventoryStore, inventory_store
 from app.sources.base import BuiltEvent, EventTypeSpec, Framing
+
+_log = logging.getLogger(__name__)
 
 
 def _fedr_stub():
@@ -87,6 +90,20 @@ def _load_fedr_module():
             return _fedr_stub()
         raise
     return mod
+
+
+def _coerce_fedr_to_api(m: Any) -> tuple[Any, bool]:
+    """Return a module-like object with load_data/pick_ep/pick_reporting/syslog_msg/GEN; replace incomplete stubs."""
+    ok = (
+        callable(getattr(m, "load_data", None))
+        and callable(getattr(m, "pick_ep", None))
+        and callable(getattr(m, "pick_reporting", None))
+        and callable(getattr(m, "syslog_msg", None))
+        and isinstance(getattr(m, "GEN", None), dict)
+    )
+    if ok:
+        return m, False
+    return _fedr_stub(), True
 
 
 def _write_csv_rows(preferred: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> Path:
@@ -216,10 +233,13 @@ class FortiEdrSource:
 
     def build_event(self, *, event_type: str, params: dict[str, Any], inventory: InventoryStore | None = None) -> BuiltEvent:
         store = inventory or inventory_store
-        m = self.mod
-        if not hasattr(m, "load_data"):
-            # Old cached stub or incomplete external module — replace with full stub API.
-            m = _fedr_stub()
+        raw_mod = self.mod
+        m, replaced = _coerce_fedr_to_api(raw_mod)
+        if replaced:
+            _log.warning(
+                "fortiedr: incomplete loader %s (need load_data/pick_ep/pick_reporting/syslog_msg/GEN); using built-in stub",
+                type(raw_mod).__name__,
+            )
             self._mod = m
         args = self._build_args(store, fortisiem_ip=params.get("fortisiem_ip"), fortisiem_port=params.get("fortisiem_port"), params={**params, "ttp": event_type})
         data = m.load_data(args)
