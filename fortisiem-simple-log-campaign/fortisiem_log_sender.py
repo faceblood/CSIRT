@@ -67,6 +67,7 @@ class Asset:
     hostname: str
     os: str
     source_type: str
+    serial_number: str = ""
 
 
 @dataclass
@@ -106,6 +107,8 @@ class CampaignContext:
     lateral_asset: Asset
     vmware_asset: Asset
     linux_asset: Asset
+    fortigate_asset: Asset
+    fortigate_serial: str
     malware_name: str
     malware_family: str
     sequence_id: int = 0
@@ -137,6 +140,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lateral-asset-ip", default="")
     parser.add_argument("--vmware-asset-ip", default="")
     parser.add_argument("--linux-asset-ip", default="")
+    parser.add_argument("--fortigate-serial", default="")
     parser.add_argument("--c2-ip", default="")
     parser.add_argument("--c2-domain", default="")
     parser.add_argument("--user-samaccountname", default="")
@@ -226,7 +230,11 @@ def load_assets(base: Path) -> list[Asset]:
             {"ip": "10.10.50.10", "hostname": "LINUX-WEB-01", "os": "Linux", "source_type": "linux"},
             {"ip": "10.10.60.10", "hostname": "VCENTER-01", "os": "VMware", "source_type": "vmware"},
         ]
-    return [Asset(r["ip"], r["hostname"], r["os"], r["source_type"]) for r in rows]
+    assets: list[Asset] = []
+    for r in rows:
+        serial_number = (r.get("serial_number") or r.get("devid") or r.get("serial") or "").strip()
+        assets.append(Asset(r["ip"], r["hostname"], r["os"], r["source_type"], serial_number))
+    return assets
 
 
 def load_simple_values(base: Path, name: str, key: str, default: list[str]) -> list[str]:
@@ -501,7 +509,7 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
     src_ip = _resolve_ip_from_role(step.src_role, ctx, source)
     dst_ip = _resolve_ip_from_role(step.dst_role, ctx, source)
     asset = _resolve_asset_from_role(step.asset_role, ctx, source)
-    host = asset.hostname
+    host = ctx.fortigate_asset.hostname if source == "fortigate" else asset.hostname
     asset_ip = asset.ip
     user_full = _resolve_user_from_role(step.user_role, ctx, source)
     command_line = random.choice(
@@ -530,6 +538,10 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
         "c2_ip": ctx.c2_ip,
         "c2_domain": ctx.c2_domain,
         "vcenter_ip": ctx.vmware_asset.ip,
+        "fortigate_ip": ctx.fortigate_asset.ip,
+        "fortigate_hostname": ctx.fortigate_asset.hostname,
+        "fortigate_serial": ctx.fortigate_serial,
+        "devid": ctx.fortigate_serial,
         "vmware_user": f"{ctx.vmware_user.username}@{ctx.vmware_user.realm}",
         "vm_name": random.choice(["VM-ERP-01", "VM-WEB-01", "VM-SOC-01"]),
         "esxi_host": random.choice(["ESXI-01", "ESXI-02"]),
@@ -638,6 +650,14 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
             raise ValueError(f"linux-asset-ip no encontrado en assets.csv: {args.linux_asset_ip}")
         linux_asset = forced_linux_asset
 
+    fortigate_asset = pick_asset(assets, "fortigate", initial_asset)
+    fortigate_serial = args.fortigate_serial.strip() if args.fortigate_serial else fortigate_asset.serial_number
+    if "fortigate" in sources and not fortigate_serial:
+        raise ValueError(
+            "FortiGate serial requerido para logs fortigate. "
+            "Definelo en config/assets.csv (serial_number) o usa --fortigate-serial."
+        )
+
     malware = random.choice(malwares)
     attacker_ip = args.attacker_ip.strip() if args.attacker_ip else choose_attacker_ip(args.src_ip_mode, assets)
     c2_ip = args.c2_ip.strip() if args.c2_ip else random.choice(c2_ips)
@@ -654,6 +674,8 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         lateral_asset=lateral_asset,
         vmware_asset=vmware_asset,
         linux_asset=linux_asset,
+        fortigate_asset=fortigate_asset,
+        fortigate_serial=fortigate_serial,
         malware_name=malware.get("name", "Generic.Malware"),
         malware_family=malware.get("family", "Generic"),
     )
