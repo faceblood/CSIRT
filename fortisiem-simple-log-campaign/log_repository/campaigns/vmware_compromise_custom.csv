@@ -1,0 +1,10 @@
+step,phase,source,category,event_hint,src_role,dst_role,asset_role,user_role,repeat,min_delay_ms,max_delay_ms
+1,initial-access,fortigate,traffic,HTTPS to vCenter denied,attacker,vcenter,vcenter,vmware_user,1,100,300
+2,credential-access,vmware,auth,vCenter failed login,attacker,vcenter,vcenter,vmware_user,2,150,350
+3,initial-access,vmware,auth,vCenter successful login,attacker,vcenter,vcenter,vmware_user,1,150,350
+4,discovery,vmware,inventory,Inventory enumeration,attacker,vcenter,vcenter,vmware_user,1,150,350
+5,discovery,vmware,inventory,VM inventory listed,attacker,vcenter,vcenter,vmware_user,1,150,350
+6,discovery,vmware,inventory,Datastore inventory listed,attacker,vcenter,vcenter,vmware_user,1,150,350
+7,impact,vmware,snapshots,Snapshot removed,attacker,vcenter,vcenter,vmware_user,1,150,350
+8,impact,vmware,power,VM powered off,attacker,vcenter,vcenter,vmware_user,1,150,350
+9,command-and-control,fortigate,traffic,C2 outbound traffic,vcenter,c2,vcenter,vmware_user,1,150,350

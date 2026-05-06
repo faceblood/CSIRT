@@ -5,8 +5,25 @@ Generador CLI de logs sinteticos para laboratorio SOC y validacion de parsing/co
 ## Requisitos
 
 - Python 3.11+
-- Scapy (`pip install scapy`)
+- Dependencias Python en `requirements.txt`
 - Para envio real con Scapy: ejecutar con permisos `root`/`sudo`.
+
+## Instalacion desde GitHub
+
+```bash
+git clone git@github.com:faceblood/CSIRT.git
+cd CSIRT/fortisiem-simple-log-campaign
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Prueba rapida (sin enviar):
+
+```bash
+python fortisiem_log_sender.py --campaign phishing --sources fortimail,windows,fortiedr,fortigate --count 5 --dry-run --print-raw
+```
 
 ## Estructura
 

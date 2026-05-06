@@ -116,6 +116,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--step-mode", action="store_true")
     parser.add_argument("--explain-campaign", action="store_true")
     parser.add_argument("--timeline-out", default="")
+    # Optional campaign context overrides
+    parser.add_argument("--attacker-ip", default="")
+    parser.add_argument("--initial-asset-ip", default="")
+    parser.add_argument("--lateral-asset-ip", default="")
+    parser.add_argument("--vmware-asset-ip", default="")
+    parser.add_argument("--linux-asset-ip", default="")
+    parser.add_argument("--c2-ip", default="")
+    parser.add_argument("--c2-domain", default="")
+    parser.add_argument("--user-samaccountname", default="")
+    parser.add_argument("--vmware-user", default="")
     return parser.parse_args()
 
 
@@ -136,7 +146,7 @@ def parse_duration(text: str) -> int:
 
 def format_rfc3164(hostname: str, message: str) -> str:
     ts = datetime.now().strftime("%b %d %H:%M:%S")
-    return f"<134>{ts} {hostname} {message}"
+    return f"<134>{ts} {hostname} fortisiem-log-sender: {message}"
 
 
 def send_syslog_scapy(target: str, port: int, message: str, src_ip: str | None) -> None:
@@ -154,8 +164,18 @@ def send_syslog_scapy(target: str, port: int, message: str, src_ip: str | None) 
 def load_csv(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
-    with path.open("r", encoding="utf-8", newline="") as f:
-        return [dict(row) for row in csv.DictReader(f)]
+    encodings = ("utf-8-sig", "utf-8", "cp1252", "latin-1")
+    last_error: Exception | None = None
+    for enc in encodings:
+        try:
+            with path.open("r", encoding=enc, newline="") as f:
+                return [dict(row) for row in csv.DictReader(f)]
+        except UnicodeDecodeError as exc:
+            last_error = exc
+            continue
+    if last_error is not None:
+        raise ValueError(f"No se pudo decodificar CSV {path} con UTF-8/CP1252/LATIN1: {last_error}") from last_error
+    return []
 
 
 def load_users(base: Path) -> list[UserAD]:
@@ -259,6 +279,30 @@ def choose_attacker_ip(mode: str, assets: list[Asset]) -> str:
 def pick_asset(assets: list[Asset], source_type: str, fallback: Asset) -> Asset:
     selected = [a for a in assets if a.source_type == source_type]
     return random.choice(selected) if selected else fallback
+
+
+def find_asset_by_ip(assets: list[Asset], ip: str) -> Asset | None:
+    for asset in assets:
+        if asset.ip == ip:
+            return asset
+    return None
+
+
+def find_user_by_sam(users: list[UserAD], sam: str) -> UserAD | None:
+    sam_lower = sam.lower()
+    for user in users:
+        if user.samaccountname.lower() == sam_lower:
+            return user
+    return None
+
+
+def find_vmware_user(vmware_users: list[VMwareUser], value: str) -> VMwareUser | None:
+    v = value.lower()
+    for user in vmware_users:
+        full = f"{user.username}@{user.realm}".lower()
+        if user.username.lower() == v or full == v:
+            return user
+    return None
 
 
 def select_template(templates: list[Template], source: str, category: str, hint: str) -> Template | None:
@@ -484,17 +528,57 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         raise RuntimeError(f"No steps found for campaign '{args.campaign}'")
 
     user = random.choice(users)
+    if args.user_samaccountname:
+        forced_user = find_user_by_sam(users, args.user_samaccountname)
+        if forced_user is None:
+            raise ValueError(f"user-samaccountname no encontrado en users_ad.csv: {args.user_samaccountname}")
+        user = forced_user
+
     vmware_user = random.choice(vmware_users)
+    if args.vmware_user:
+        forced_vm_user = find_vmware_user(vmware_users, args.vmware_user)
+        if forced_vm_user is None:
+            raise ValueError(f"vmware-user no encontrado en vmware_users.csv: {args.vmware_user}")
+        vmware_user = forced_vm_user
+
     initial_asset = pick_asset(assets, "windows", assets[0])
+    if args.initial_asset_ip:
+        forced_initial = find_asset_by_ip(assets, args.initial_asset_ip)
+        if forced_initial is None:
+            raise ValueError(f"initial-asset-ip no encontrado en assets.csv: {args.initial_asset_ip}")
+        initial_asset = forced_initial
+
     lateral_asset = pick_asset(assets, "windows", initial_asset)
+    if args.lateral_asset_ip:
+        forced_lateral = find_asset_by_ip(assets, args.lateral_asset_ip)
+        if forced_lateral is None:
+            raise ValueError(f"lateral-asset-ip no encontrado en assets.csv: {args.lateral_asset_ip}")
+        lateral_asset = forced_lateral
+
     vmware_asset = pick_asset(assets, "vmware", initial_asset)
+    if args.vmware_asset_ip:
+        forced_vmware_asset = find_asset_by_ip(assets, args.vmware_asset_ip)
+        if forced_vmware_asset is None:
+            raise ValueError(f"vmware-asset-ip no encontrado en assets.csv: {args.vmware_asset_ip}")
+        vmware_asset = forced_vmware_asset
+
     linux_asset = pick_asset(assets, "linux", initial_asset)
+    if args.linux_asset_ip:
+        forced_linux_asset = find_asset_by_ip(assets, args.linux_asset_ip)
+        if forced_linux_asset is None:
+            raise ValueError(f"linux-asset-ip no encontrado en assets.csv: {args.linux_asset_ip}")
+        linux_asset = forced_linux_asset
+
     malware = random.choice(malwares)
+    attacker_ip = args.attacker_ip.strip() if args.attacker_ip else choose_attacker_ip(args.src_ip_mode, assets)
+    c2_ip = args.c2_ip.strip() if args.c2_ip else random.choice(c2_ips)
+    c2_domain = args.c2_domain.strip() if args.c2_domain else random.choice(c2_domains)
+
     ctx = CampaignContext(
         campaign_id=f"{args.campaign}-{uuid.uuid4().hex[:8]}",
-        attacker_ip=choose_attacker_ip(args.src_ip_mode, assets),
-        c2_ip=random.choice(c2_ips),
-        c2_domain=random.choice(c2_domains),
+        attacker_ip=attacker_ip,
+        c2_ip=c2_ip,
+        c2_domain=c2_domain,
         user=user,
         vmware_user=vmware_user,
         initial_asset=initial_asset,
