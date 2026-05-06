@@ -138,6 +138,7 @@ def parse_args() -> argparse.Namespace:
     # Optional campaign context overrides
     parser.add_argument("--attacker-ip", default="")
     parser.add_argument("--initial-asset-ip", default="")
+    parser.add_argument("--initial-asset-hostname", default="")
     parser.add_argument("--lateral-asset-ip", default="")
     parser.add_argument("--vmware-asset-ip", default="")
     parser.add_argument("--linux-asset-ip", default="")
@@ -630,6 +631,14 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         if forced_initial is None:
             raise ValueError(f"initial-asset-ip no encontrado en assets.csv: {args.initial_asset_ip}")
         initial_asset = forced_initial
+    if args.initial_asset_hostname:
+        initial_asset = Asset(
+            ip=initial_asset.ip,
+            hostname=args.initial_asset_hostname.strip(),
+            os=initial_asset.os,
+            source_type=initial_asset.source_type,
+            serial_number=initial_asset.serial_number,
+        )
 
     lateral_asset = pick_asset(assets, "windows", initial_asset)
     if args.lateral_asset_ip:
