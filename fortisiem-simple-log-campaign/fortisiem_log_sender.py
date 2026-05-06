@@ -302,22 +302,21 @@ def build_single_source_steps(
     event_hint: str,
     repeat: int,
 ) -> list[CampaignStep]:
-    steps: list[CampaignStep] = []
-    step_id = 1
+    selected_category = category.strip()
+    # No campaign mode should emit a single log type, not a chain.
     for source in sorted(sources):
         source_templates = [t for t in templates if t.source == source]
         if not source_templates:
             continue
-        selected_category = category.strip()
         if selected_category:
             source_templates = [t for t in source_templates if t.category == selected_category]
         if not source_templates:
             continue
         if not selected_category:
             selected_category = source_templates[0].category
-        steps.append(
+        return [
             CampaignStep(
-                step=step_id,
+                step=1,
                 source=source,
                 category=selected_category,
                 event_hint=event_hint.strip(),
@@ -328,9 +327,8 @@ def build_single_source_steps(
                 asset_role="",
                 user_role="",
             )
-        )
-        step_id += 1
-    return steps
+        ]
+    return []
 
 
 def choose_attacker_ip(mode: str, assets: list[Asset]) -> str:
