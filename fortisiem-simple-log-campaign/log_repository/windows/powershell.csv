@@ -1,2 +1,0 @@
-id,source,category,event_name,severity,action,weight,template,tags,ttp
-win_ps_001,windows,powershell,Suspicious PowerShell ScriptBlock,high,detect,10,"EventID=4104 Provider=""Microsoft-Windows-PowerShell"" HostName=""{hostname}"" User=""{domain}\\{username}"" ScriptBlockText=""{command_line}"" Message=""Suspicious PowerShell script block detected""","windows,powershell","execution"

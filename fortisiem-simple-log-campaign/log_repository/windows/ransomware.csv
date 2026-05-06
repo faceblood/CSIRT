@@ -1,2 +1,0 @@
-id,source,category,event_name,severity,action,weight,template,tags,ttp
-win_ran_001,windows,ransomware,Shadow copies deleted,critical,detect,10,"EventID=4688 Provider=""Microsoft-Windows-Security-Auditing"" HostName=""{hostname}"" User=""{domain}\\{username}"" NewProcessName=""C:\\Windows\\System32\\vssadmin.exe"" CommandLine=""vssadmin delete shadows /all /quiet"" ParentProcessName=""C:\\Windows\\System32\\cmd.exe""","windows,ransomware","impact"
