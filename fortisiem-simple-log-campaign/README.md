@@ -47,7 +47,7 @@ sudo python fortisiem_log_sender.py --target 10.255.9.3 --campaign vmware-compro
 
 - `--campaign`: phishing, ransomware, apt, bruteforce, vmware-compromise, mixed.
 - `--sources`: lista CSV de fuentes.
-- `--src-ip-mode random|asset`: IP atacante aleatoria o desde `assets.csv`.
+- `--src-ip-mode random|asset|<ipv4>`: IP atacante aleatoria, desde `assets.csv` o fija (ej. `192.168.1.50`).
 - `--dry-run`: no envia, solo genera.
 - `--print-raw`: imprime logs sin encapsulado adicional.
 - `--step-mode`: avanza paso a paso (ENTER/s/r/q).

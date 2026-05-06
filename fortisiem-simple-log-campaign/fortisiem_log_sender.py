@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import ipaddress
 import json
 import random
 import re
@@ -18,7 +19,6 @@ from typing import Any
 DEFAULT_TARGET = "10.255.9.3"
 DEFAULT_PORT = 514
 DEFAULT_RATE = 5
-DEFAULT_HOSTNAME = "fortisiem-log-sender"
 DEFAULT_SEND_MODE = "scapy"
 SUPPORTED_CAMPAIGNS = {
     "phishing",
@@ -30,6 +30,19 @@ SUPPORTED_CAMPAIGNS = {
     "ransomware-roles-example",
 }
 SUPPORTED_SOURCES = {"fortigate", "fortimail", "windows", "linux", "fortiedr", "vmware"}
+
+
+def parse_src_ip_mode(value: str) -> str:
+    candidate = value.strip()
+    if candidate in {"random", "asset"}:
+        return candidate
+    try:
+        ipaddress.IPv4Address(candidate)
+        return candidate
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "src-ip-mode debe ser 'random', 'asset' o una IPv4 valida"
+        ) from exc
 
 
 @dataclass
@@ -102,7 +115,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Simple FortiSIEM synthetic log campaign sender")
     parser.add_argument("--target", default=DEFAULT_TARGET)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--syslog-hostname", default=DEFAULT_HOSTNAME)
+    parser.add_argument("--syslog-hostname", default="localhost")
     parser.add_argument("--count", type=int, default=100)
     parser.add_argument("--rate", type=int, default=DEFAULT_RATE)
     parser.add_argument("--campaign", default="")
@@ -113,7 +126,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--duration", default="")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--print-raw", action="store_true")
-    parser.add_argument("--src-ip-mode", default="random", choices=["random", "asset"])
+    parser.add_argument("--src-ip-mode", default="random", type=parse_src_ip_mode)
     parser.add_argument("--send-mode", default=DEFAULT_SEND_MODE, choices=["scapy"])
     parser.add_argument("--step-mode", action="store_true")
     parser.add_argument("--explain-campaign", action="store_true")
@@ -148,7 +161,7 @@ def parse_duration(text: str) -> int:
 
 def format_rfc3164(hostname: str, message: str) -> str:
     ts = datetime.now().strftime("%b %d %H:%M:%S")
-    return f"<134>{ts} {hostname} fortisiem-log-sender: {message}"
+    return f"<134>{ts} {hostname} {message}"
 
 
 def send_syslog_scapy(target: str, port: int, message: str, src_ip: str | None) -> None:
@@ -271,9 +284,49 @@ def load_campaign_steps(base: Path, campaign: str) -> list[CampaignStep]:
     return sorted(steps, key=lambda s: s.step)
 
 
+def build_single_source_steps(
+    templates: list[Template],
+    sources: set[str],
+    category: str,
+    event_hint: str,
+    repeat: int,
+) -> list[CampaignStep]:
+    steps: list[CampaignStep] = []
+    step_id = 1
+    for source in sorted(sources):
+        source_templates = [t for t in templates if t.source == source]
+        if not source_templates:
+            continue
+        selected_category = category.strip()
+        if selected_category:
+            source_templates = [t for t in source_templates if t.category == selected_category]
+        if not source_templates:
+            continue
+        if not selected_category:
+            selected_category = source_templates[0].category
+        steps.append(
+            CampaignStep(
+                step=step_id,
+                source=source,
+                category=selected_category,
+                event_hint=event_hint.strip(),
+                repeat=max(1, repeat),
+                phase="single-source",
+                src_role="",
+                dst_role="",
+                asset_role="",
+                user_role="",
+            )
+        )
+        step_id += 1
+    return steps
+
+
 def choose_attacker_ip(mode: str, assets: list[Asset]) -> str:
     if mode == "asset":
         return random.choice(assets).ip
+    if mode != "random":
+        return mode
     first = random.randint(11, 223)
     return f"{first}.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
 
@@ -517,8 +570,6 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
     unknown = sources - SUPPORTED_SOURCES
     if unknown:
         raise ValueError(f"Fuentes no soportadas: {sorted(unknown)}")
-    if args.campaign and args.campaign not in SUPPORTED_CAMPAIGNS:
-        raise ValueError(f"Campaña no soportada: {args.campaign}")
 
     users = load_users(base)
     vmware_users = load_vmware_users(base)
@@ -527,11 +578,23 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
     c2_ips = load_simple_values(base, "c2_ips.csv", "ip", ["45.9.148.10"])
     c2_domains = load_simple_values(base, "c2_domains.csv", "domain", ["cdn-update-security.example"])
     templates = load_templates(base)
-    steps: list[CampaignStep] = []
     if args.campaign:
         steps = load_campaign_steps(base, args.campaign)
         if not steps:
             raise RuntimeError(f"No steps found for campaign '{args.campaign}'")
+    else:
+        steps = build_single_source_steps(
+            templates=templates,
+            sources=sources,
+            category=args.category,
+            event_hint=args.event_hint,
+            repeat=max(1, args.count),
+        )
+        if not steps:
+            raise RuntimeError(
+                "No templates found for the selected source/category. "
+                "Try setting --sources fortigate and optionally --category vpn."
+            )
 
     user = random.choice(users)
     if args.user_samaccountname:
@@ -581,7 +644,7 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
     c2_domain = args.c2_domain.strip() if args.c2_domain else random.choice(c2_domains)
 
     ctx = CampaignContext(
-        campaign_id=f"{(args.campaign or 'source-only')}-{uuid.uuid4().hex[:8]}",
+        campaign_id=f"{(args.campaign or 'single-source')}-{uuid.uuid4().hex[:8]}",
         attacker_ip=attacker_ip,
         c2_ip=c2_ip,
         c2_domain=c2_domain,
@@ -594,7 +657,7 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         malware_name=malware.get("name", "Generic.Malware"),
         malware_family=malware.get("family", "Generic"),
     )
-    if args.explain_campaign and steps:
+    if args.explain_campaign:
         _print_campaign_explain(steps, ctx)
 
     rate_sleep = 1.0 / max(1, args.rate)
@@ -606,69 +669,6 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
     timeline: list[dict[str, Any]] = []
 
     while True:
-        if not steps:
-            # Source-only mode: no campaign sequence, generate directly from templates.
-            source = random.choice(sorted(sources))
-            category = args.category.strip()
-            hint = args.event_hint.strip()
-            if not category:
-                categories = sorted({t.category for t in templates if t.source == source})
-                if not categories:
-                    raise RuntimeError(f"No templates found for source '{source}'")
-                category = random.choice(categories)
-            template = select_template(templates, source, category, hint)
-            if template is None:
-                raise RuntimeError(
-                    f"No template found for source='{source}', category='{category}', hint='{hint}'"
-                )
-
-            synthetic_step = CampaignStep(
-                step=1,
-                source=source,
-                category=category,
-                event_hint=hint or template.event_name,
-                repeat=1,
-            )
-            raw, src_ip = render(template.template, ctx, source, synthetic_step)
-            wire = format_rfc3164(args.syslog_hostname, raw)
-            view = _resolve_step_view(synthetic_step, ctx)
-            if args.print_raw:
-                print(raw)
-            if not args.dry_run:
-                send_syslog_scapy(args.target, args.port, wire, src_ip=src_ip)
-            timeline.append(
-                {
-                    "timestamp": datetime.now().isoformat(timespec="seconds"),
-                    "campaign_id": ctx.campaign_id,
-                    "step": 1,
-                    "phase": "",
-                    "source": source,
-                    "category": category,
-                    "event_hint": synthetic_step.event_hint,
-                    "src_role": view["src_role"],
-                    "dst_role": view["dst_role"],
-                    "src_ip": view["src_ip"],
-                    "dst_ip": view["dst_ip"] or "N/A",
-                    "asset": view["asset_name"],
-                    "user": view["user"],
-                    "raw": raw,
-                }
-            )
-            sent += 1
-            idx += 1
-            if args.count and sent >= args.count:
-                _write_timeline(args.timeline_out, timeline)
-                return sent
-            if duration_sec and (time.time() - start_ts) >= duration_sec:
-                _write_timeline(args.timeline_out, timeline)
-                return sent
-            if not args.step_mode:
-                time.sleep(rate_sleep)
-            if not args.loop and not args.count:
-                _write_timeline(args.timeline_out, timeline)
-                return sent
-            continue
-
         for i, step in enumerate(steps, start=1):
             if step.source not in sources:
                 continue
