@@ -1,0 +1,9 @@
+step,source,category,event_hint,repeat,phase,src_role,dst_role,asset_role,user_role
+1,fortigate,vpn,SSLVPN login success,1,initial_access,attacker,target,initial_asset,user
+2,fortigate,vpn,SSLVPN login success,1,initial_access,attacker,target,initial_asset,user
+3,fortigate,vpn,SSLVPN login success,1,initial_access,attacker,target,initial_asset,user
+4,fortigate,vpn,SSLVPN tunnel up,3,command_and_control,attacker,target,initial_asset,user
+5,fortigate,vpn,IPsec phase1 up,2,command_and_control,attacker,target,initial_asset,user
+6,fortigate,vpn,IPsec rekey,2,command_and_control,attacker,target,initial_asset,user
+7,fortigate,vpn,SSLVPN tunnel down,2,impact,attacker,target,initial_asset,user
+8,fortigate,vpn,SSLVPN logout,3,impact,attacker,target,initial_asset,user
