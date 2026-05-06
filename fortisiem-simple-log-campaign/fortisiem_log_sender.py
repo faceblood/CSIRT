@@ -110,6 +110,7 @@ class CampaignContext:
     fortigate_asset: Asset
     fortigate_devname: str
     fortigate_serial: str
+    encoded_commands: list[str]
     malware_name: str
     malware_family: str
     sequence_id: int = 0
@@ -517,7 +518,7 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
     user_full = _resolve_user_from_role(step.user_role, ctx, source)
     command_line = random.choice(
         [
-            "powershell -NoP -W Hidden -EncodedCommand <synthetic_value>",
+            random.choice(ctx.encoded_commands),
             "vssadmin delete shadows /all /quiet",
             "wbadmin delete catalog -quiet",
             "ipconfig /all",
@@ -592,6 +593,12 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
     malwares = load_csv(base / "config" / "malware_samples.csv") or [{"name": "Suspicious/EncodedPowerShell", "family": "PowerShell"}]
     c2_ips = load_simple_values(base, "c2_ips.csv", "ip", ["45.9.148.10"])
     c2_domains = load_simple_values(base, "c2_domains.csv", "domain", ["cdn-update-security.example"])
+    encoded_commands = load_simple_values(
+        base,
+        "powershell_encoded_commands.csv",
+        "encoded_command",
+        ["SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkA"],
+    )
     templates = load_templates(base)
     if args.campaign:
         steps = load_campaign_steps(base, args.campaign)
@@ -690,6 +697,7 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         fortigate_asset=fortigate_asset,
         fortigate_devname=fortigate_devname,
         fortigate_serial=fortigate_serial,
+        encoded_commands=encoded_commands,
         malware_name=malware.get("name", "Generic.Malware"),
         malware_family=malware.get("family", "Generic"),
     )
