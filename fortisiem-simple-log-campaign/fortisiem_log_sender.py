@@ -108,6 +108,7 @@ class CampaignContext:
     vmware_asset: Asset
     linux_asset: Asset
     fortigate_asset: Asset
+    fortigate_devname: str
     fortigate_serial: str
     malware_name: str
     malware_family: str
@@ -140,6 +141,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lateral-asset-ip", default="")
     parser.add_argument("--vmware-asset-ip", default="")
     parser.add_argument("--linux-asset-ip", default="")
+    parser.add_argument("--fortigate-devname", default="")
     parser.add_argument("--fortigate-serial", default="")
     parser.add_argument("--c2-ip", default="")
     parser.add_argument("--c2-domain", default="")
@@ -509,7 +511,7 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
     src_ip = _resolve_ip_from_role(step.src_role, ctx, source)
     dst_ip = _resolve_ip_from_role(step.dst_role, ctx, source)
     asset = _resolve_asset_from_role(step.asset_role, ctx, source)
-    host = ctx.fortigate_asset.hostname if source == "fortigate" else asset.hostname
+    host = ctx.fortigate_devname if source == "fortigate" else asset.hostname
     asset_ip = asset.ip
     user_full = _resolve_user_from_role(step.user_role, ctx, source)
     command_line = random.choice(
@@ -539,7 +541,7 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
         "c2_domain": ctx.c2_domain,
         "vcenter_ip": ctx.vmware_asset.ip,
         "fortigate_ip": ctx.fortigate_asset.ip,
-        "fortigate_hostname": ctx.fortigate_asset.hostname,
+        "fortigate_hostname": ctx.fortigate_devname,
         "fortigate_serial": ctx.fortigate_serial,
         "devid": ctx.fortigate_serial,
         "vmware_user": f"{ctx.vmware_user.username}@{ctx.vmware_user.realm}",
@@ -651,11 +653,13 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         linux_asset = forced_linux_asset
 
     fortigate_asset = pick_asset(assets, "fortigate", initial_asset)
+    fortigate_devname = args.fortigate_devname.strip() if args.fortigate_devname else fortigate_asset.hostname
     fortigate_serial = args.fortigate_serial.strip() if args.fortigate_serial else fortigate_asset.serial_number
-    if "fortigate" in sources and not fortigate_serial:
+    if "fortigate" in sources and (not fortigate_devname or not fortigate_serial):
         raise ValueError(
-            "FortiGate serial requerido para logs fortigate. "
-            "Definelo en config/assets.csv (serial_number) o usa --fortigate-serial."
+            "FortiGate devname/serial requeridos para logs fortigate. "
+            "Definelos en config/assets.csv (hostname/serial_number) o usa "
+            "--fortigate-devname y --fortigate-serial."
         )
 
     malware = random.choice(malwares)
@@ -675,6 +679,7 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         vmware_asset=vmware_asset,
         linux_asset=linux_asset,
         fortigate_asset=fortigate_asset,
+        fortigate_devname=fortigate_devname,
         fortigate_serial=fortigate_serial,
         malware_name=malware.get("name", "Generic.Malware"),
         malware_family=malware.get("family", "Generic"),
