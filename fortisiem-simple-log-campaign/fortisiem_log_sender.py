@@ -102,6 +102,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Simple FortiSIEM synthetic log campaign sender")
     parser.add_argument("--target", default=DEFAULT_TARGET)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--syslog-hostname", default=DEFAULT_HOSTNAME)
     parser.add_argument("--count", type=int, default=100)
     parser.add_argument("--rate", type=int, default=DEFAULT_RATE)
     parser.add_argument("--campaign", required=True, choices=sorted(SUPPORTED_CAMPAIGNS))
@@ -135,7 +136,7 @@ def parse_duration(text: str) -> int:
 
 def format_rfc3164(hostname: str, message: str) -> str:
     ts = datetime.now().strftime("%b %d %H:%M:%S")
-    return f"<134>{ts} {hostname} fortisiem-log-sender: {message}"
+    return f"<134>{ts} {hostname} {message}"
 
 
 def send_syslog_scapy(target: str, port: int, message: str, src_ip: str | None) -> None:
@@ -534,7 +535,7 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
                 continue
             for _ in range(max(1, current.repeat)):
                 raw, src_ip = render(template.template, ctx, current.source, current)
-                wire = format_rfc3164(DEFAULT_HOSTNAME, raw)
+                wire = format_rfc3164(args.syslog_hostname, raw)
                 view = _resolve_step_view(current, ctx)
                 if args.print_raw:
                     print(raw)
