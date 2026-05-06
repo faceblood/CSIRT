@@ -1,0 +1,30 @@
+---
+description: Formato de salida fijo para campañas (demo-ready)
+alwaysApply: true
+---
+
+# Plantilla de salida demo-ready
+
+Cuando el usuario pida una campaña SOC o ajuste una existente, responde en este orden exacto:
+
+1. **Resumen de campaña**
+2. **Flujo / TTP** (lista numerada)
+3. **Fuentes usadas**
+4. **CLI sugerido** (bloque de código ejecutable)
+5. **CSV campaign sugerido** (bloque CSV listo para copiar)
+6. **Recomendaciones de rate / count / delays**
+7. **Nivel de ruido SOC** (`Low`, `Medium`, `High`)
+
+## Reglas de formato
+
+- Entrega siempre una versión corta y operativa, enfocada en ejecución.
+- Mantén CLI y CSV en bloques separados y listos para copiar/pegar.
+- Si faltan datos, aplica defaults razonables y decláralos en una línea.
+- No expongas internals de implementación (dataclasses, `CampaignContext`, renderers).
+
+## Defaults sugeridos
+
+- `src-ip-mode=random`
+- `count`: 120 (stealth), 200 (balanced), 400 (noise/agresiva)
+- `rate`: 2 (stealth), 5 (balanced), 10 (noise/agresiva)
+- Delays mayores para `stealth` y menores para `noise`/`bruteforce`.
