@@ -30,6 +30,9 @@ SUPPORTED_CAMPAIGNS = {
     "ransomware-roles-example",
 }
 SUPPORTED_SOURCES = {"fortigate", "fortimail", "windows", "linux", "fortiedr", "vmware"}
+DEFAULT_DOMAIN = "age.local"
+DEFAULT_FORTIEDR_TENANT = "default"
+DEFAULT_FORTIEDR_SITE = "onprem-site"
 
 
 def parse_src_ip_mode(value: str) -> str:
@@ -68,6 +71,14 @@ class Asset:
     os: str
     source_type: str
     serial_number: str = ""
+    fortigate_devname: str = ""
+    fortigate_serial: str = ""
+    edr_tenant: str = ""
+    edr_site: str = ""
+    edr_mssp_mode: str = ""
+    vmware_role: str = ""
+    vmware_datacenter: str = ""
+    vmware_cluster: str = ""
 
 
 @dataclass
@@ -110,6 +121,10 @@ class CampaignContext:
     fortigate_asset: Asset
     fortigate_devname: str
     fortigate_serial: str
+    edr_tenant: str
+    edr_site: str
+    edr_mssp_mode: str
+    custom_hostname: str
     encoded_commands: list[str]
     malware_name: str
     malware_family: str
@@ -137,6 +152,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeline-out", default="")
     # Optional campaign context overrides
     parser.add_argument("--attacker-ip", default="")
+    parser.add_argument("--endpoint-ip", default="")
+    parser.add_argument("--hostname", default="")
     parser.add_argument("--initial-asset-ip", default="")
     parser.add_argument("--initial-asset-hostname", default="")
     parser.add_argument("--lateral-asset-ip", default="")
@@ -210,7 +227,7 @@ def load_users(base: Path) -> list[UserAD]:
     result: list[UserAD] = []
     for r in rows:
         email = r["email"].strip()
-        domain = email.split("@", 1)[1] if "@" in email else "age.local"
+        domain = DEFAULT_DOMAIN
         sid = f"S-1-5-21-{random.randint(1000000000, 1999999999)}-{random.randint(1000,9999)}"
         result.append(UserAD(r["samaccountname"].strip(), email, domain, sid))
     return result
@@ -236,7 +253,25 @@ def load_assets(base: Path) -> list[Asset]:
     assets: list[Asset] = []
     for r in rows:
         serial_number = (r.get("serial_number") or r.get("devid") or r.get("serial") or "").strip()
-        assets.append(Asset(r["ip"], r["hostname"], r["os"], r["source_type"], serial_number))
+        fortigate_serial = (r.get("fortigate_serial") or serial_number).strip()
+        fortigate_devname = (r.get("fortigate_devname") or r.get("hostname") or "").strip()
+        assets.append(
+            Asset(
+                ip=r["ip"],
+                hostname=r["hostname"],
+                os=r["os"],
+                source_type=r["source_type"],
+                serial_number=serial_number,
+                fortigate_devname=fortigate_devname,
+                fortigate_serial=fortigate_serial,
+                edr_tenant=(r.get("edr_tenant") or "").strip(),
+                edr_site=(r.get("edr_site") or "").strip(),
+                edr_mssp_mode=(r.get("edr_mssp_mode") or "").strip(),
+                vmware_role=(r.get("vmware_role") or "").strip(),
+                vmware_datacenter=(r.get("vmware_datacenter") or "").strip(),
+                vmware_cluster=(r.get("vmware_cluster") or "").strip(),
+            )
+        )
     return assets
 
 
@@ -510,7 +545,11 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
     src_ip = _resolve_ip_from_role(step.src_role, ctx, source)
     dst_ip = _resolve_ip_from_role(step.dst_role, ctx, source)
     asset = _resolve_asset_from_role(step.asset_role, ctx, source)
-    host = ctx.fortigate_devname if source == "fortigate" else asset.hostname
+    host = (
+        ctx.fortigate_devname
+        if source == "fortigate"
+        else (ctx.custom_hostname or asset.hostname)
+    )
     asset_ip = asset.ip
     user_full = _resolve_user_from_role(step.user_role, ctx, source)
     command_line = random.choice(
@@ -543,6 +582,9 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
         "fortigate_hostname": ctx.fortigate_devname,
         "fortigate_serial": ctx.fortigate_serial,
         "devid": ctx.fortigate_serial,
+        "tenant": ctx.edr_tenant,
+        "site": ctx.edr_site,
+        "mssp_mode": ctx.edr_mssp_mode,
         "vmware_user": f"{ctx.vmware_user.username}@{ctx.vmware_user.realm}",
         "vm_name": random.choice(["VM-ERP-01", "VM-WEB-01", "VM-SOC-01"]),
         "esxi_host": random.choice(["ESXI-01", "ESXI-02"]),
@@ -630,10 +672,19 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         vmware_user = forced_vm_user
 
     initial_asset = pick_asset(assets, "windows", assets[0])
-    if args.initial_asset_ip:
-        forced_initial = find_asset_by_ip(assets, args.initial_asset_ip)
+    endpoint_ip = (args.endpoint_ip or args.initial_asset_ip).strip()
+    if endpoint_ip:
+        forced_initial = find_asset_by_ip(assets, endpoint_ip)
         if forced_initial is None:
-            raise ValueError(f"initial-asset-ip no encontrado en assets.csv: {args.initial_asset_ip}")
+            generated_hostname = args.initial_asset_hostname.strip() or args.hostname.strip() or f"ENDPOINT-{endpoint_ip.replace('.', '-')}"
+            # Allow runtime endpoint injection even when IP is not present in assets.csv.
+            forced_initial = Asset(
+                ip=endpoint_ip,
+                hostname=generated_hostname,
+                os="Windows",
+                source_type="windows",
+                serial_number="",
+            )
         initial_asset = forced_initial
     if args.initial_asset_hostname:
         initial_asset = Asset(
@@ -666,17 +717,36 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         linux_asset = forced_linux_asset
 
     fortigate_asset = pick_asset(assets, "fortigate", initial_asset)
-    fortigate_devname = args.fortigate_devname.strip() if args.fortigate_devname else fortigate_asset.hostname
-    fortigate_serial = args.fortigate_serial.strip() if args.fortigate_serial else fortigate_asset.serial_number
+    custom_hostname = args.hostname.strip()
+    fortigate_devname = (
+        args.fortigate_devname.strip()
+        if args.fortigate_devname
+        else (custom_hostname or fortigate_asset.fortigate_devname or fortigate_asset.hostname)
+    )
+    fortigate_serial = (
+        args.fortigate_serial.strip()
+        if args.fortigate_serial
+        else (fortigate_asset.fortigate_serial or fortigate_asset.serial_number)
+    )
     if "fortigate" in sources and (not fortigate_devname or not fortigate_serial):
         raise ValueError(
             "FortiGate devname/serial requeridos para logs fortigate. "
             "Definelos en config/assets.csv (hostname/serial_number) o usa "
             "--fortigate-devname y --fortigate-serial."
         )
+    edr_tenant = initial_asset.edr_tenant or DEFAULT_FORTIEDR_TENANT
+    edr_site = initial_asset.edr_site or DEFAULT_FORTIEDR_SITE
+    edr_mssp_mode = initial_asset.edr_mssp_mode or "false"
 
     malware = random.choice(malwares)
-    attacker_ip = args.attacker_ip.strip() if args.attacker_ip else choose_attacker_ip(args.src_ip_mode, assets)
+    if args.attacker_ip.strip():
+        attacker_ip = args.attacker_ip.strip()
+    elif args.src_ip_mode not in {"random", "asset"}:
+        # Explicit fixed IP provided through src-ip-mode.
+        attacker_ip = args.src_ip_mode
+    else:
+        # Use the principal endpoint IP by default.
+        attacker_ip = initial_asset.ip
     c2_ip = args.c2_ip.strip() if args.c2_ip else random.choice(c2_ips)
     c2_domain = args.c2_domain.strip() if args.c2_domain else random.choice(c2_domains)
 
@@ -694,6 +764,10 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         fortigate_asset=fortigate_asset,
         fortigate_devname=fortigate_devname,
         fortigate_serial=fortigate_serial,
+        edr_tenant=edr_tenant,
+        edr_site=edr_site,
+        edr_mssp_mode=edr_mssp_mode,
+        custom_hostname=custom_hostname,
         encoded_commands=encoded_commands,
         malware_name=malware.get("name", "Generic.Malware"),
         malware_family=malware.get("family", "Generic"),
