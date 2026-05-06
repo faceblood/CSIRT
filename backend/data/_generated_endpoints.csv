@@ -1,4 +1,0 @@
-hostname,ip,os,os_family,group
-MAD-W11-FIN-014,10.0.10.30,Windows 11 Pro 23H2,windows,Finance Workstations
-MAD-LNX-WEB-001,10.0.30.21,Ubuntu Server 22.04 LTS,linux,Linux Web Servers
-DC-MAD-01,10.0.20.10,Windows Server 2022 DC,windows,Domain Controllers
