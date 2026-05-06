@@ -1,0 +1,5 @@
+step,source,category,event_hint,repeat
+1,linux,ssh,SSH failed password,3
+2,windows,security,Windows failed logon,3
+3,vmware,auth,vCenter failed login,2
+4,fortigate,traffic,Denied SSH scan,1

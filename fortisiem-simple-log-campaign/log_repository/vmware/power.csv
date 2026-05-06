@@ -1,0 +1,2 @@
+id,source,category,event_name,severity,action,weight,template,tags,ttp
+vmw_pow_001,vmware,power,VM powered off,critical,success,10,"vpxd[{pid}]: [Originator@6876 sub=Vmomi opID=power-{opid} user={vmware_user}] vim.event.VmPoweredOffEvent: VM {vm_name} powered off by user {vmware_user} from {src_ip}","vmware,power","impact"

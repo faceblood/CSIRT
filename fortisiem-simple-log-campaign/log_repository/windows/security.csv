@@ -1,0 +1,2 @@
+id,source,category,event_name,severity,action,weight,template,tags,ttp
+win_sec_001,windows,security,Windows failed logon,medium,failure,10,"EventID=4625 Provider=""Microsoft-Windows-Security-Auditing"" HostName=""{hostname}"" AccountName=""{username}"" AccountDomain=""{domain}"" SourceNetworkAddress=""{src_ip}"" LogonType=3 Status=""0xC000006D"" Message=""An account failed to log on""","windows,auth","credential-access"

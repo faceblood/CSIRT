@@ -1,0 +1,3 @@
+id,source,category,event_name,severity,action,weight,template,tags,ttp
+vmw_auth_001,vmware,auth,vCenter failed login,medium,failure,10,"vpxd[{pid}]: [Originator@6876 sub=Default opID=login-{opid}] vim.event.BadUsernameSessionEvent: Cannot login user {vmware_user}@{src_ip}: incorrect user name or password","vmware,auth","credential-access"
+vmw_auth_002,vmware,auth,vCenter successful login,high,success,6,"vpxd[{pid}]: [Originator@6876 sub=Default opID=login-{opid}] vim.event.UserLoginSessionEvent: User {vmware_user}@{src_ip} logged in as VMware vSphere Client","vmware,auth","initial-access"

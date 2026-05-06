@@ -1,0 +1,2 @@
+id,source,category,event_name,severity,action,weight,template,tags,ttp
+linux_ssh_001,linux,ssh,SSH failed password,medium,failure,10,"sshd[{pid}]: Failed password for invalid user {username} from {src_ip} port {src_port} ssh2","linux,ssh","credential-access"

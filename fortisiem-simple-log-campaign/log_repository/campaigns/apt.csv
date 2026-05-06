@@ -1,0 +1,8 @@
+step,source,category,event_hint,repeat
+1,fortigate,traffic,Denied SSH scan,1
+2,linux,ssh,SSH failed password,2
+3,windows,security,Windows failed logon,1
+4,windows,powershell,Suspicious PowerShell ScriptBlock,1
+5,vmware,inventory,Inventory enumeration,1
+6,vmware,inventory,VM inventory listed,1
+7,fortigate,traffic,C2 outbound traffic,1

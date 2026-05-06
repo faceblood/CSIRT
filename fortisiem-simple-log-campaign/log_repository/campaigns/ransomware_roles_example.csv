@@ -1,0 +1,12 @@
+step,phase,source,category,event_hint,src_role,dst_role,asset_role,user_role,repeat,min_delay_ms,max_delay_ms
+1,initial-access,fortimail,phishing,Phishing email quarantined,attacker,initial_asset,initial_asset,initial_user,1,100,300
+2,execution,windows,powershell,Suspicious PowerShell ScriptBlock,initial_asset,none,initial_asset,initial_user,1,200,500
+3,detection,fortiedr,detection,Suspicious PowerShell detected,initial_asset,c2,initial_asset,initial_user,1,200,500
+4,command-and-control,fortigate,traffic,C2 outbound traffic,initial_asset,c2,initial_asset,initial_user,1,200,500
+5,discovery,windows,security,Windows failed logon,initial_asset,lateral_asset,lateral_asset,initial_user,1,200,500
+6,lateral-movement,fortigate,traffic,Denied SSH scan,initial_asset,lateral_asset,lateral_asset,initial_user,1,200,500
+7,impact,windows,ransomware,Shadow copies deleted,lateral_asset,none,lateral_asset,initial_user,1,200,500
+8,impact,fortiedr,ransomware,Ransomware behavior detected,lateral_asset,c2,lateral_asset,initial_user,1,200,500
+9,impact,vmware,inventory,Datastore inventory listed,attacker,vcenter,vcenter,vmware_user,1,200,500
+10,impact,vmware,snapshots,Snapshot removed,attacker,vcenter,vcenter,vmware_user,1,200,500
+11,impact,vmware,power,VM powered off,attacker,vcenter,vcenter,vmware_user,1,200,500

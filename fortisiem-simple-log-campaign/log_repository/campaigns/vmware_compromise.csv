@@ -1,0 +1,10 @@
+step,source,category,event_hint,repeat
+1,fortigate,traffic,HTTPS to vCenter denied,1
+2,vmware,auth,vCenter failed login,2
+3,vmware,auth,vCenter successful login,1
+4,vmware,inventory,Inventory enumeration,1
+5,vmware,inventory,VM inventory listed,1
+6,vmware,inventory,Datastore inventory listed,1
+7,vmware,snapshots,Snapshot removed,1
+8,vmware,power,VM powered off,1
+9,fortigate,traffic,C2 outbound traffic,1

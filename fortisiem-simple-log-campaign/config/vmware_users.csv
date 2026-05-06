@@ -1,0 +1,3 @@
+username,realm,email,role
+administrator,vsphere.local,administrator@vsphere.local,admin
+backupsvc,vsphere.local,backupsvc@vsphere.local,backup
