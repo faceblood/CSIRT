@@ -110,6 +110,7 @@ class CampaignStep:
 class CampaignContext:
     campaign_id: str
     attacker_ip: str
+    vpn_remote_ip: str
     c2_ip: str
     c2_domain: str
     user: UserAD
@@ -152,6 +153,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeline-out", default="")
     # Optional campaign context overrides
     parser.add_argument("--attacker-ip", default="")
+    parser.add_argument("--vpn-remote-ip", default="")
     parser.add_argument("--endpoint-ip", default="")
     parser.add_argument("--hostname", default="")
     parser.add_argument("--initial-asset-ip", default="")
@@ -570,6 +572,7 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
         "time": now.strftime("%H:%M:%S"),
         "timestamp": now.isoformat(timespec="seconds"),
         "src_ip": src_ip,
+        "vpn_remote_ip": ctx.vpn_remote_ip,
         "dst_ip": dst_ip or asset_ip,
         "asset_ip": asset_ip,
         "hostname": host,
@@ -750,12 +753,20 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         attacker_ip = args.src_ip_mode
     else:
         attacker_ip = choose_attacker_ip(args.src_ip_mode, assets)
+    if args.vpn_remote_ip.strip():
+        vpn_remote_ip = args.vpn_remote_ip.strip()
+    elif args.attacker_ip.strip():
+        vpn_remote_ip = args.attacker_ip.strip()
+    else:
+        # Default to a separate WAN-like client IP for VPN events.
+        vpn_remote_ip = choose_attacker_ip("random", assets)
     c2_ip = args.c2_ip.strip() if args.c2_ip else random.choice(c2_ips)
     c2_domain = args.c2_domain.strip() if args.c2_domain else random.choice(c2_domains)
 
     ctx = CampaignContext(
         campaign_id=f"{(args.campaign or 'single-source')}-{uuid.uuid4().hex[:8]}",
         attacker_ip=attacker_ip,
+        vpn_remote_ip=vpn_remote_ip,
         c2_ip=c2_ip,
         c2_domain=c2_domain,
         user=user,
