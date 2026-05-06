@@ -10,7 +10,7 @@ from app.core.history import HistoryBuffer
 from app.core.inventory_store import inventory_store
 from app.core.exercise_store import exercise_store
 from app.core.jobs import init_job_manager
-from app.routers import bulk, catalog, exercise, generate, history, inventory, jobs, keepalive, playbook, raw, simulate, upload
+from app.routers import bulk, campaign_chat, catalog, exercise, generate, history, inventory, jobs, keepalive, playbook, raw, simulate, upload
 
 
 @asynccontextmanager
@@ -67,6 +67,7 @@ app.include_router(jobs.router)
 app.include_router(playbook.router)
 app.include_router(keepalive.router)
 app.include_router(exercise.router)
+app.include_router(campaign_chat.router)
 
 static_dir = settings.repo_root / "frontend" / "dist"
 if static_dir.exists():

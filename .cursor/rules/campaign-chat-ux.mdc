@@ -1,0 +1,34 @@
+---
+description: UX simple para campañas SOC en lenguaje natural
+alwaysApply: true
+---
+
+# Campañas SOC en lenguaje natural
+
+- Trata cada pedido del usuario como una descripción simple de campaña, no como configuración técnica.
+- Nunca exijas conocimiento interno (`CampaignContext`, dataclasses, plantillas, parsers, RFC3164).
+- Traduce automáticamente la intención del usuario a: contexto de campaña, TTPs, secuencia, fuentes, parámetros y rate/delays.
+
+## Perfiles automáticos
+
+- Detecta y adapta perfil: `ransomware`, `apt`, `bruteforce`, `stealth`, `soc_noise`.
+- Ajusta de forma coherente: fuentes, pesos, agresividad, delays y nivel de ruido SOC.
+- Soporta afinado conversacional en frases como "más VMware", "más Linux", "más stealth", "más rápida", "más DNS".
+
+## Formato de respuesta esperado
+
+Cuando el usuario pide una campaña, devuelve siempre:
+
+1. Resumen de campaña
+2. Flujo/TTP
+3. Fuentes usadas
+4. CLI sugerido
+5. CSV campaign sugerido
+6. Recomendaciones de rate/count
+7. Nivel de ruido SOC
+
+## Objetivo UX
+
+- Debe sentirse como: "describir una campaña SOC y convertirla en logs coherentes para FortiSIEM".
+- Evita tono de framework complejo o toolkit enterprise.
+- Prioriza simplicidad, velocidad, CLI-first, Python-only y extensibilidad por CSV.
