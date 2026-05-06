@@ -130,7 +130,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--duration", default="")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--print-raw", action="store_true")
     parser.add_argument("--src-ip-mode", default="random", type=parse_src_ip_mode)
     parser.add_argument("--send-mode", default=DEFAULT_SEND_MODE, choices=["scapy"])
     parser.add_argument("--step-mode", action="store_true")
@@ -734,8 +733,7 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
                 raw, src_ip = render(template.template, ctx, current.source, current)
                 wire = format_rfc3164(args.syslog_hostname, raw)
                 view = _resolve_step_view(current, ctx)
-                if args.print_raw:
-                    print(raw)
+                print(raw)
                 if not args.dry_run:
                     send_syslog_scapy(args.target, args.port, wire, src_ip=src_ip)
                 timeline.append(
