@@ -464,7 +464,9 @@ def _resolve_user_from_role(role: str, ctx: CampaignContext, source: str) -> str
 
 def _resolve_step_view(step: CampaignStep, ctx: CampaignContext) -> dict[str, str]:
     src_ip = _resolve_ip_from_role(step.src_role, ctx, step.source)
-    dst_ip = _resolve_ip_from_role(step.dst_role, ctx, step.source)
+    # Keep destination empty when not explicitly defined in the step.
+    # This prevents default FortiGate source-role behavior from mirroring src->dst.
+    dst_ip = _resolve_ip_from_role(step.dst_role, ctx, step.source) if step.dst_role else ""
     asset = _resolve_asset_from_role(step.asset_role, ctx, step.source)
     user = _resolve_user_from_role(step.user_role, ctx, step.source)
     src_role = step.src_role or ("attacker" if step.source in {"fortigate", "fortimail", "vmware"} else "initial_asset")
@@ -543,7 +545,9 @@ def render(template: str, ctx: CampaignContext, source: str, step: CampaignStep)
     ctx.sequence_id += 1
     now = datetime.now()
     src_ip = _resolve_ip_from_role(step.src_role, ctx, source)
-    dst_ip = _resolve_ip_from_role(step.dst_role, ctx, source)
+    # Keep destination empty when not explicitly defined in the step.
+    # Mapping will safely fall back to asset_ip where needed.
+    dst_ip = _resolve_ip_from_role(step.dst_role, ctx, source) if step.dst_role else ""
     asset = _resolve_asset_from_role(step.asset_role, ctx, source)
     host = (
         ctx.fortigate_devname
@@ -745,8 +749,7 @@ def run_campaign(args: argparse.Namespace, base: Path) -> int:
         # Explicit fixed IP provided through src-ip-mode.
         attacker_ip = args.src_ip_mode
     else:
-        # Use the principal endpoint IP by default.
-        attacker_ip = initial_asset.ip
+        attacker_ip = choose_attacker_ip(args.src_ip_mode, assets)
     c2_ip = args.c2_ip.strip() if args.c2_ip else random.choice(c2_ips)
     c2_domain = args.c2_domain.strip() if args.c2_domain else random.choice(c2_domains)
 
