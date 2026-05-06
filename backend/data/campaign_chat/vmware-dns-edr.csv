@@ -1,0 +1,7 @@
+step,tactic,technique,source_id,event_type,count,delay_s,params_json
+1,Initial Access,T1566,fortimail,phishing_detected,9,2,"{}"
+2,Execution,T1059.001,windows,4688,16,1,"{""process"":""powershell.exe""}"
+3,Credential Access,T1110.001,windows,4625,19,1,"{}"
+4,Discovery,T1082,linux,audit_execve,16,2,"{}"
+5,Lateral Movement,T1021,fortiedr,lateral_movement,24,2,"{}"
+6,Command and Control,T1071.004,fortigate,dns_query,55,1,"{""qname"":""stage-check.example""}"

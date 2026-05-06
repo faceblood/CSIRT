@@ -23,6 +23,26 @@ def _catalog() -> dict[str, set[str]]:
     return out
 
 
+def _csv_escape(s: str) -> str:
+    return s.replace('"', '""')
+
+
+def _steps_to_csv(steps: list[dict]) -> str:
+    lines = ["step,tactic,technique,source_id,event_type,count,delay_s,params_json"]
+    for idx, st in enumerate(steps, start=1):
+        tactic = str(st.get("tactic") or "")
+        technique = str(st.get("technique") or "")
+        source_id = str(st.get("source_id") or "")
+        event_type = str(st.get("event_type") or "")
+        count = int(st.get("count") or 1)
+        delay_s = int(st.get("delay_s") or 0)
+        params_json = str(st.get("params_json") or "{}")
+        lines.append(
+            f'{idx},{tactic},{technique},{source_id},{event_type},{count},{delay_s},"{_csv_escape(params_json)}"'
+        )
+    return "\n".join(lines)
+
+
 @router.post("")
 def campaign_chat(body: CampaignChatBody):
     base = build_campaign_from_prompt(body.prompt)
@@ -254,7 +274,24 @@ def campaign_chat(body: CampaignChatBody):
     adjusted = dict(base)
     adjusted["steps"] = adjusted_steps
     adjusted["sources"] = sorted({s["source_id"] for s in adjusted_steps if isinstance(s.get("source_id"), str)})
-    adjusted["campaign_csv"] = None  # keep base csv; adjusted steps are authoritative
+    adjusted["campaign_csv"] = _steps_to_csv(adjusted_steps)
+
+    adjusted_count = sum(int(s.get("count") or 0) for s in adjusted_steps)
+    adjusted_sources = adjusted["sources"]
+    adjusted_campaign_id = (adjusted.get("campaign_summary") or {}).get("id") or "chat-generated"
+
+    adjusted_rate = int((adjusted.get("recommendations") or {}).get("rate") or (base.get("recommendations") or {}).get("rate") or 5)
+    adjusted["recommendations"] = dict(adjusted.get("recommendations") or {})
+    adjusted["recommendations"]["count"] = adjusted_count
+    adjusted["recommendations"]["rate"] = adjusted_rate
+    adjusted["cli"] = (
+        "python fortisiem_log_sender.py "
+        f"--campaign {adjusted_campaign_id} "
+        f"--sources {','.join(adjusted_sources)} "
+        f"--count {adjusted_count} "
+        f"--rate {adjusted_rate} "
+        "--src-ip-mode random"
+    )
 
     return {
         "ok": len(errors) == 0,
@@ -262,5 +299,8 @@ def campaign_chat(body: CampaignChatBody):
         "adjusted": adjusted,
         "errors": errors,
         "corrections": corrections,
+    }
+
+,
     }
 
