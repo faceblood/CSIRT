@@ -1,0 +1,2 @@
+id,source,category,event_name,severity,action,weight,template,tags,ttp
+vmw_snap_001,vmware,snapshots,Snapshot removed,critical,success,10,"vpxd[{pid}]: [Originator@6876 sub=Task opID=task-{opid} user={vmware_user}] vim.event.TaskEvent: Task RemoveSnapshot_Task created for vm={vm_name} snapshot=pre-maintenance-check result=queued","vmware,snapshot","impact"

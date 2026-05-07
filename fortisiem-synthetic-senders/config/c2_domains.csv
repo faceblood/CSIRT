@@ -1,0 +1,3 @@
+domain,threat_family,category,confidence
+cdn-update-security.example,RedLine,malware-c2,high
+office365-validation.example,AsyncRAT,phishing,medium

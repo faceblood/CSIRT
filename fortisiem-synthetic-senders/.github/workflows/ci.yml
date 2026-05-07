@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: |
+          python -m pip install -U pip
+          python -m pip install .
+
+      - name: Dry-run all senders
+        working-directory: ${{ github.workspace }}
+        run: |
+          python -m fortisiem_send.cli.fortigate_vpn --dry-run --count 1 --rate 20
+          python -m fortisiem_send.cli.fortigate_traffic --dry-run --count 1 --rate 20
+          python -m fortisiem_send.cli.fortiedr --dry-run --count 1 --rate 20
+          python -m fortisiem_send.cli.vmware --dry-run --count 1 --rate 20
+          python -m fortisiem_send.cli.windows --dry-run --count 1 --rate 20
+          python -m fortisiem_send.cli.linux --dry-run --count 1 --rate 20
+          python -m fortisiem_send.cli.fortimail --dry-run --count 1 --rate 20

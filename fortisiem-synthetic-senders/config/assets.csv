@@ -1,0 +1,7 @@
+ip,hostname,os,source_type,serial_number,fortigate_devname,fortigate_serial,edr_tenant,edr_site,edr_mssp_mode,vmware_role,vmware_datacenter,vmware_cluster
+10.10.10.21,WIN-IT-001,Windows,windows,,,,default,onprem-site,false,,,
+10.10.50.10,LINUX-WEB-01,Linux,linux,,,,,,,,
+10.10.60.10,VCENTER-01,VMware,vmware,,,,,,,vcenter,DC-PROD,CL-CORE
+10.10.60.11,ESXI-01,VMware,vmware,,,,,,,esxi,DC-PROD,CL-CORE
+10.10.70.1,FGT-LAB,FortiGate,fortigate,FGT60FTK00000000,FGT-LAB,FGT60FTK00000000,,,,,,
+10.10.80.1,FML-LAB,FortiMail,fortimail,,,,,,,,

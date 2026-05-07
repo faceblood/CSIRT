@@ -1,0 +1,2 @@
+id,source,category,event_name,severity,action,weight,template,tags,ttp
+fml_001,fortimail,phishing,Phishing email quarantined,high,quarantine,10,"date={date} time={time} devname=""FML-LAB"" type=""spam"" subtype=""smtp"" pri=""warning"" client_ip=""{src_ip}"" from=""invoice@{c2_domain}"" to=""{email}"" subject=""Factura pendiente"" action=""quarantine"" classifier=""phishing"" msg=""Phishing email quarantined""","fortimail,phishing","initial-access"

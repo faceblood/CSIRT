@@ -1,0 +1,7 @@
+username,realm,email,role
+administrator,vsphere.local,administrator@vsphere.local,admin
+backupsvc,vsphere.local,backupsvc@vsphere.local,backup
+monitoring,vsphere.local,monitoring@vsphere.local,monitor
+deploysvc,vsphere.local,deploysvc@vsphere.local,deployment
+replicasvc,vsphere.local,replicasvc@vsphere.local,replication
+auditor,vsphere.local,auditor@vsphere.local,audit

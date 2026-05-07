@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fortisiem-synthetic-senders"
+version = "0.1.0"
+description = "Per-source FortiSIEM synthetic syslog senders (no campaign CSV)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["scapy>=2.5.0"]
+
+[project.scripts]
+send-fortigate-vpn = "fortisiem_send.cli.fortigate_vpn:main"
+send-fortigate-traffic = "fortisiem_send.cli.fortigate_traffic:main"
+send-fortiedr = "fortisiem_send.cli.fortiedr:main"
+send-vmware = "fortisiem_send.cli.vmware:main"
+send-windows = "fortisiem_send.cli.windows:main"
+send-linux = "fortisiem_send.cli.linux:main"
+send-fortimail = "fortisiem_send.cli.fortimail:main"
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]

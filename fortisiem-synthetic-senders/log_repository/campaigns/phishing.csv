@@ -1,0 +1,5 @@
+step,source,category,event_hint,repeat
+1,fortimail,phishing,Phishing email quarantined,1
+2,windows,powershell,Suspicious PowerShell ScriptBlock,1
+3,fortiedr,detection,Suspicious PowerShell detected,1
+4,fortigate,traffic,C2 outbound traffic,1

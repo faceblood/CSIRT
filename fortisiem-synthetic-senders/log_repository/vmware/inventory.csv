@@ -1,0 +1,4 @@
+id,source,category,event_name,severity,action,weight,template,tags,ttp
+vmw_inv_001,vmware,inventory,Inventory enumeration,medium,success,10,"vpxd[{pid}]: [Originator@6876 sub=InvtSvc opID=inv-{opid} user={vmware_user}] Inventory enumeration requested from {src_ip} object=Datacenter-MADRID method=RetrievePropertiesEx result=success","vmware,inventory","discovery"
+vmw_inv_002,vmware,inventory,VM inventory listed,medium,success,9,"vpxd[{pid}]: [Originator@6876 sub=InvtSvc opID=inv-{opid} user={vmware_user}] Virtual machine inventory listed from {src_ip} count=42 folder=vm object=Datacenter-MADRID result=success","vmware,inventory","discovery"
+vmw_inv_003,vmware,inventory,Datastore inventory listed,medium,success,8,"vpxd[{pid}]: [Originator@6876 sub=InvtSvc opID=inv-{opid} user={vmware_user}] Datastore inventory listed from {src_ip} count=5 datacenter=Datacenter-MADRID result=success","vmware,inventory","discovery"
